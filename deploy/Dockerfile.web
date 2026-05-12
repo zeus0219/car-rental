@@ -1,0 +1,38 @@
+# Next.js web — standalone output. Build from monorepo root:
+#   docker build -f deploy/Dockerfile.web -t car-rental-web .
+
+FROM node:20-bookworm-slim AS build
+WORKDIR /app
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json ./
+COPY apps/web/package.json apps/web/
+COPY apps/api/package.json apps/api/
+COPY apps/worker/package.json apps/worker/
+COPY packages/shared/package.json packages/shared/
+RUN npm ci
+COPY packages/shared packages/shared
+COPY apps/web apps/web
+ARG NEXT_PUBLIC_API_URL=http://localhost:3000/v1
+ARG NEXT_PUBLIC_DEFAULT_COMPANY_ID=
+# Optional desk VAT display (0–1); omit at build for code default in vat-display.ts
+ARG NEXT_PUBLIC_VAT_RATE=
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_DEFAULT_COMPANY_ID=$NEXT_PUBLIC_DEFAULT_COMPANY_ID
+ENV NEXT_PUBLIC_VAT_RATE=$NEXT_PUBLIC_VAT_RATE
+RUN npm run build -w @car-rental/shared
+RUN npm run build -w @car-rental/web
+
+FROM node:20-bookworm-slim AS runner
+WORKDIR /app
+RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs nextjs
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3001
+ENV HOSTNAME=0.0.0.0
+# Paths match `output: "standalone"` + `outputFileTracingRoot` (monorepo)
+COPY --from=build /app/apps/web/.next/standalone ./
+COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
+USER nextjs
+EXPOSE 3001
+CMD ["node", "apps/web/server.js"]

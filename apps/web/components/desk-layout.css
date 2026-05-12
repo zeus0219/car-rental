@@ -1,0 +1,318 @@
+.desk {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  background-image: var(--color-bg-gradient);
+  background-attachment: fixed;
+}
+
+.desk-content {
+  flex: 1;
+  max-width: 1180px;
+  width: 100%;
+  margin: 0 auto;
+  padding: clamp(1.25rem, 3vw, 2rem) clamp(1rem, 3vw, 1.75rem) 3rem;
+}
+
+.desk-gate {
+  min-height: 40vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+}
+
+.desk-gate p {
+  margin: 0;
+  padding: 1rem 1.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.desk-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem 0.85rem;
+  flex-wrap: wrap;
+  padding: 0.55rem clamp(0.75rem, 2vw, 1.25rem);
+  background: linear-gradient(180deg, #12182a 0%, #0c101c 100%);
+  color: #e2e8f0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.desk-nav a.desk-nav-link {
+  color: #94a3b8;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 0.4rem 0.7rem;
+  border-radius: var(--radius-full);
+  transition:
+    color 0.12s ease,
+    background 0.12s ease;
+}
+
+.desk-nav a.desk-nav-link:hover {
+  color: #f1f5f9;
+  background: rgba(255, 255, 255, 0.07);
+  text-decoration: none;
+}
+
+.desk-nav a.desk-nav-link.is-active {
+  color: #fff;
+  font-weight: 600;
+  background: rgba(99, 102, 241, 0.35);
+  box-shadow: inset 0 0 0 1px rgba(165, 180, 252, 0.35);
+}
+
+.desk-nav .desk-brand {
+  font-weight: 700;
+  font-size: 0.98rem;
+  letter-spacing: -0.02em;
+  color: #fff;
+  margin-right: 0.35rem;
+  padding: 0.35rem 0.5rem 0.35rem 0;
+}
+
+.desk-nav .desk-spacer {
+  flex: 1;
+}
+
+.desk-nav .desk-sign-out {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.42rem 0.85rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.desk-nav .desk-sign-out:hover {
+  background: rgba(239, 68, 68, 0.22);
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.desk-nav .desk-sign-out:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.55);
+}
+
+@media (max-width: 720px) {
+  .desk-nav {
+    row-gap: 0.5rem;
+  }
+
+  .desk-nav a.desk-nav-link {
+    padding: 0.45rem 0.6rem;
+    font-size: 0.8rem;
+  }
+
+  .desk-nav .desk-sign-out {
+    min-height: 40px;
+    padding: 0.45rem 0.85rem;
+  }
+
+  .desk-content {
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+}
+
+.fleet-vehicle-thumb {
+  width: 44px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+  flex-shrink: 0;
+}
+
+.fleet-cal-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0 0.75rem;
+}
+
+.fleet-cal-btn {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  min-height: 40px;
+}
+
+.fleet-cal-btn:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.fleet-cal-btn:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.fleet-cal-range {
+  margin-left: 0.25rem;
+  font-size: 0.88rem;
+}
+
+.fleet-cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.fleet-cal-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.fleet-cal-legend-swatch {
+  width: 1rem;
+  height: 0.65rem;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.fleet-cal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.fleet-cal-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: stretch;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.fleet-cal-vehicle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.fleet-cal-model {
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 12rem;
+}
+
+.fleet-cal-vehicle-placeholder {
+  width: 44px;
+  height: 34px;
+  border-radius: 6px;
+  background: var(--color-surface-muted);
+  border: 1px dashed var(--color-border);
+  flex-shrink: 0;
+}
+
+.fleet-cal-track {
+  position: relative;
+  min-height: 2.25rem;
+  background: color-mix(in srgb, var(--color-surface-muted) 80%, var(--color-bg));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.fleet-cal-bar {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 4px;
+  min-width: 3px;
+  box-sizing: border-box;
+}
+
+a.fleet-cal-bar {
+  z-index: 2;
+}
+
+.fleet-cal-bar--quote {
+  background: #cbd5e1;
+  border: 1px solid #94a3b8;
+}
+
+.fleet-cal-bar--pending {
+  background: #fbbf24;
+  border: 1px solid #d97706;
+}
+
+.fleet-cal-bar--confirmed {
+  background: #60a5fa;
+  border: 1px solid #2563eb;
+}
+
+.fleet-cal-bar--inprog {
+  background: #6366f1;
+  border: 1px solid #4338ca;
+}
+
+.fleet-cal-bar--done {
+  background: #34d399;
+  border: 1px solid #059669;
+}
+
+.fleet-cal-bar--muted {
+  background: #94a3b8;
+  opacity: 0.55;
+  border: 1px solid #64748b;
+}
+
+.fleet-cal-block {
+  z-index: 1;
+  background: repeating-linear-gradient(
+    -45deg,
+    #57534e,
+    #57534e 4px,
+    #44403c 4px,
+    #44403c 8px
+  );
+  border: 1px solid #292524;
+  opacity: 0.92;
+}
+
+@media (max-width: 640px) {
+  .fleet-cal-row {
+    grid-template-columns: 1fr;
+  }
+
+  .fleet-cal-track {
+    min-height: 2.75rem;
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@car-rental/worker",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "prisma:generate": "node ../../scripts/prisma-generate-retry.cjs",
+    "prebuild": "node ../../scripts/prisma-generate-retry.cjs",
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/main.js",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.750.0",
+    "@car-rental/shared": "*",
+    "@prisma/client": "5.22.0"
+  },
+  "devDependencies": {
+    "prisma": "5.22.0",
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.2"
+  }
+}

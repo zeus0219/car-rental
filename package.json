@@ -1,0 +1,39 @@
+{
+  "name": "car-rental",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20.10.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run build --filter=@car-rental/shared && turbo run lint",
+    "format": "prettier -w .",
+    "format:check": "prettier -c .",
+    "db:generate": "npm run prisma:generate -w @car-rental/api",
+    "db:migrate": "npm run prisma:migrate -w @car-rental/api",
+    "db:push": "npm exec -w @car-rental/api -- prisma db push",
+    "db:seed": "npm exec -w @car-rental/api -- prisma db seed",
+    "dev:api": "npm run build -w @car-rental/shared && npm run dev -w @car-rental/api",
+    "dev:worker": "npm run build -w @car-rental/worker && npm run start -w @car-rental/worker",
+    "docker:api": "docker build -f deploy/Dockerfile.api -t car-rental-api .",
+    "docker:web": "docker build -f deploy/Dockerfile.web -t car-rental-web .",
+    "docker:worker": "docker build -f deploy/Dockerfile.worker -t car-rental-worker .",
+    "docker:staging": "docker compose -f deploy/docker-compose.staging.yml --env-file deploy/.env.staging"
+  },
+  "dependencies": {
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1"
+  },
+  "devDependencies": {
+    "path-scurry": "^1.11.1",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  }
+}

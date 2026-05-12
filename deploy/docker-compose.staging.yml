@@ -1,0 +1,156 @@
+# Staging stack: separate Postgres volume + DB name from production.
+# Never point this at your production database.
+# Includes **worker** (CaRGOS queue + optional B2 document purge) — same `DATABASE_URL` as API.
+#
+#   copy deploy\.env.staging.example deploy\.env.staging
+#   docker compose -f deploy/docker-compose.staging.yml --env-file deploy/.env.staging up -d --build
+#
+# Migrations: DATABASE_URL must target this DB (see docs/STAGING.md).
+# Stripe: use test keys in the API environment (sk_test_...), not live.
+# Redis (A6): included for shared HTTP rate limits (same as prod compose pattern).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: carrental
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in deploy/.env.staging}
+      POSTGRES_DB: carrental_staging
+    volumes:
+      - car_rental_staging_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U carrental -d carrental_staging']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://carrental:${POSTGRES_PASSWORD}@postgres:5432/carrental_staging?schema=public
+      JWT_SECRET: ${JWT_SECRET:?set in deploy/.env.staging}
+      CORS_ORIGINS: ${CORS_ORIGINS:?staging web origins}
+      TRUST_PROXY: 'true'
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_CHECKOUT_SUCCESS_URL: ${STRIPE_CHECKOUT_SUCCESS_URL:-}
+      STRIPE_CHECKOUT_CANCEL_URL: ${STRIPE_CHECKOUT_CANCEL_URL:-}
+      STRIPE_PUBLIC_CHECKOUT_SUCCESS_URL: ${STRIPE_PUBLIC_CHECKOUT_SUCCESS_URL:-}
+      STRIPE_PUBLIC_CHECKOUT_CANCEL_URL: ${STRIPE_PUBLIC_CHECKOUT_CANCEL_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-}
+      PASSWORD_RESET_TTL_MINUTES: ${PASSWORD_RESET_TTL_MINUTES:-60}
+      EMAIL_STRIPE_CHECKOUT_LINKS: ${EMAIL_STRIPE_CHECKOUT_LINKS:-}
+      EMAIL_STRIPE_WEBHOOK_EMAILS: ${EMAIL_STRIPE_WEBHOOK_EMAILS:-}
+      AUTH_LOGIN_MAX_ATTEMPTS: ${AUTH_LOGIN_MAX_ATTEMPTS:-8}
+      AUTH_LOGIN_LOCKOUT_MINUTES: ${AUTH_LOGIN_LOCKOUT_MINUTES:-15}
+      AUTH_MFA_REQUIRED: ${AUTH_MFA_REQUIRED:-}
+      SWAGGER_ENABLE: ${SWAGGER_ENABLE:-}
+      STORAGE_MODE: ${STORAGE_MODE:-local}
+      STORAGE_LOCAL_ROOT: ${STORAGE_LOCAL_ROOT:-/app/data/uploads}
+      S3_REGION: ${S3_REGION:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_USE_PATH_STYLE: ${S3_USE_PATH_STYLE:-true}
+      HANDOVER_REQUIRE_SIGNED_AGREEMENT: ${HANDOVER_REQUIRE_SIGNED_AGREEMENT:-}
+      HANDOVER_REQUIRE_CARGOS: ${HANDOVER_REQUIRE_CARGOS:-}
+      HANDOVER_REQUIRE_ID_DOCUMENTS: ${HANDOVER_REQUIRE_ID_DOCUMENTS:-}
+      HANDOVER_REQUIRE_VERIFIED_ID_DOCUMENTS: ${HANDOVER_REQUIRE_VERIFIED_ID_DOCUMENTS:-}
+      CARGOS_AUTO_ENQUEUE_ON_SIGN: ${CARGOS_AUTO_ENQUEUE_ON_SIGN:-}
+    volumes:
+      - car_rental_staging_uploads:/app/data/uploads
+    ports:
+      - '3040:3000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://carrental:${POSTGRES_PASSWORD}@postgres:5432/carrental_staging?schema=public
+      WORKER_RETENTION_PURGE_BATCH: ${WORKER_RETENTION_PURGE_BATCH:-25}
+      WORKER_HEARTBEAT_LOG_MS: ${WORKER_HEARTBEAT_LOG_MS:-0}
+      CARGOS_MAX_ATTEMPTS: ${CARGOS_MAX_ATTEMPTS:-5}
+      CARGOS_HTTP_TIMEOUT_MS: ${CARGOS_HTTP_TIMEOUT_MS:-30000}
+      WORKER_POLL_IDLE_MS: ${WORKER_POLL_IDLE_MS:-2000}
+      WORKER_PROCESSING_STALE_MS: ${WORKER_PROCESSING_STALE_MS:-900000}
+      WORKER_CARGOS_MOCK_DELAY_MS: ${WORKER_CARGOS_MOCK_DELAY_MS:-400}
+      WORKER_CUSTOMER_DOCUMENT_OCR_INTERVAL_MS: ${WORKER_CUSTOMER_DOCUMENT_OCR_INTERVAL_MS:-0}
+      WORKER_PARTNER_WEBHOOK_INTERVAL_MS: ${WORKER_PARTNER_WEBHOOK_INTERVAL_MS:-0}
+      STORAGE_MODE: ${STORAGE_MODE:-local}
+      STORAGE_LOCAL_ROOT: ${STORAGE_LOCAL_ROOT:-/app/data/uploads}
+      S3_REGION: ${S3_REGION:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_USE_PATH_STYLE: ${S3_USE_PATH_STYLE:-true}
+    volumes:
+      - car_rental_staging_uploads:/app/data/uploads
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?public staging API URL for browser}
+        NEXT_PUBLIC_DEFAULT_COMPANY_ID: ${NEXT_PUBLIC_DEFAULT_COMPANY_ID:-}
+        NEXT_PUBLIC_VAT_RATE: ${NEXT_PUBLIC_VAT_RATE:-}
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+    ports:
+      - '3041:3001'
+
+volumes:
+  car_rental_staging_pg:
+  car_rental_staging_uploads:

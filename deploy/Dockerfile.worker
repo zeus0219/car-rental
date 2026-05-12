@@ -1,0 +1,27 @@
+# CaRGOS stub worker. Build from monorepo root:
+#   docker build -f deploy/Dockerfile.worker -t car-rental-worker .
+
+FROM node:20-bookworm-slim AS build
+WORKDIR /app
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json ./
+COPY apps/api/package.json apps/api/
+COPY apps/worker/package.json apps/worker/
+COPY packages/shared/package.json packages/shared/
+RUN npm ci
+COPY packages/shared packages/shared
+COPY apps/api/prisma apps/api/prisma
+COPY apps/worker apps/worker
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
+RUN npm run prisma:generate -w @car-rental/api
+RUN npm run build -w @car-rental/shared
+RUN npm run build -w @car-rental/worker
+RUN npm prune --omit=dev
+
+FROM node:20-bookworm-slim AS runner
+WORKDIR /app
+RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs appuser
+COPY --from=build /app /app
+USER appuser
+ENV NODE_ENV=production
+CMD ["node", "apps/worker/dist/main.js"]

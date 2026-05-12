@@ -1,0 +1,927 @@
+// Spine: org + fleet + blocks (see ARCHITECTURE.md §3–4).
+// Migrations: cd apps/api && npx prisma migrate dev
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- Organization ---
+
+/// D5: CaRGOS / Polizia reporting — test vs production and adapter (see D4 in PRODUCTION-READINESS)
+enum CargosEnvironment {
+  TEST
+  PRODUCTION
+}
+
+enum CargosAdapter {
+  /// Worker simulates success (v1 default)
+  MOCK
+  /// POST JSON to `cargosHttpUrl` (vendor middleware or future bridge)
+  HTTP
+  /// No automatic transmission; handover may use policy override
+  OFF
+}
+
+/// E4: SDI FatturaPA handoff — v1 **MOCK** / **HTTP** middleware, not the Agenzia portale
+enum SdiAdapter {
+  OFF
+  /// Immediate pseudo **MOCK_SENT** (dev / UAT)
+  MOCK
+  /// POST JSON to `sdiHttpUrl` (accountant gateway); 2xx → **SENT**
+  HTTP
+}
+
+/// Legal entity (invoicing, CaRGOS enrollment — expand later)
+model Company {
+  id             String         @id @default(uuid())
+  name           String
+  /// One-way surcharge (minor units) when pickup and return stations differ; added to class-based rent
+  oneWayFeeCents Int?
+  /// Italy self-drive CaRGOS in scope; if false, submissions are **SKIPPED** and handover does not require a transmission
+  cargosInScope  Boolean        @default(true)
+  /// Test vs live Polizia endpoint (semantic for middleware / D4)
+  cargosEnvironment CargosEnvironment @default(TEST)
+  /// How the worker (or future job) delivers data
+  cargosAdapter  CargosAdapter  @default(MOCK)
+  /// When `cargosAdapter` is **HTTP** — optional tenant-specific middleware URL
+  cargosHttpUrl  String?
+  /// Minutes before `pickupAt` after which new CaRGOS enqueue is rejected; handover gate shows CARGOS_ENQUEUE_CUTOFF if transmission still required (override: ADMIN/BRANCH). Null or 0 disables.
+  cargosCutoffMinutesBeforePickup Int?
+  /// E4: SDI — default **OFF**; use **MOCK** or **HTTP** to `sdiHttpUrl` in non-prod
+  sdiAdapter     SdiAdapter     @default(OFF)
+  sdiHttpUrl     String?
+  /// B3: Italian fiscal identifiers for the renting company (lessor) — invoices / SDI context
+  fiscalCode         String?  @db.VarChar(32)
+  vatNumber          String?  @db.VarChar(20)
+  sdiRecipientCode   String?  @db.VarChar(10)
+  pec                String?  @db.VarChar(320)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  stations       Station[]
+  vehicleClasses VehicleClass[]
+  vehicles       Vehicle[]
+  reservations   Reservation[]
+  users          User[]
+  customers      Customer[]
+  customerDocuments CustomerDocument[]
+  rentalAgreements RentalAgreement[]
+  cargosSubmissions CargosSubmission[]
+  reservationOperationPhotos ReservationOperationPhoto[]
+  damageReports          DamageReport[]
+  damageReportPhotos     DamageReportPhoto[]
+  invoices               Invoice[]
+  invoiceFiscalSequences InvoiceFiscalSequence[]
+  sdiInvoiceSubmissions  SdiInvoiceSubmission[]
+  stripeRefundLedgers    StripeRefundLedger[]
+  partnerApiKeys        PartnerApiKey[]
+  /// B4: register of counsel-approved privacy notice versions (reference for `Customer.privacyNoticeVersion`)
+  privacyNotices        CompanyPrivacyNotice[]
+}
+
+/// B4 — company-level privacy notice register (not legal text in DB; staff reference + version ids)
+model CompanyPrivacyNotice {
+  id            String    @id @default(uuid())
+  companyId     String
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Id aligned with what staff store on `Customer.privacyNoticeVersion` (e.g. 2025-10)
+  version       String    @db.VarChar(64)
+  /// Optional published notice URL (https) for desk / export reference
+  policyUrl     String?   @db.VarChar(512)
+  /// Optional effective date (calendar day, UTC)
+  effectiveFrom DateTime? @db.Date
+  /// Internal note (e.g. “approved by X, counsel ref …”)
+  notes         String?   @db.VarChar(500)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([companyId, version])
+  @@index([companyId])
+}
+
+/// G2: B2B integration key (bcrypt-hashed; plaintext shown once on create). Use `Authorization: Bearer crtp_…` or `X-Partner-Key`.
+model PartnerApiKey {
+  id               String    @id
+  companyId        String
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name             String    @db.VarChar(120)
+  keyHash          String    @db.Text
+  revokedAt        DateTime?
+  lastUsedAt       DateTime?
+  createdByUserId  String?
+  createdBy        User?     @relation("PartnerApiKeyCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt        DateTime  @default(now())
+  /// G2: optional HTTPS URL for outbound partner webhooks (`reservation.created`, …) (POST JSON + HMAC).
+  webhookUrl           String?  @db.VarChar(2048)
+  /// G2: plaintext signing secret for HMAC-SHA256 over the raw JSON body (rotate from desk; protect DB access).
+  webhookSigningSecret String?  @db.VarChar(512)
+  /// G2 (depth): optional comma-separated IPv4 / CIDR allowlist for this key; combined with env `PARTNER_API_ALLOWED_IP_CIDRS` (both apply when set).
+  allowedIpCidrs     String?  @db.Text
+  /// G2: bcrypt hash for OAuth2 client_secret (`POST /v1/partner/oauth/token`); plaintext shown once when generated from desk.
+  oauthClientSecretHash String? @db.Text
+  partnerReservationsCreated Reservation[] @relation("ReservationCreatedByPartnerKey")
+  reservationIdempotencies PartnerReservationIdempotency[]
+  webhookDeliveries        PartnerWebhookDelivery[]
+
+  @@index([companyId])
+}
+
+model PartnerReservationIdempotency {
+  id              String        @id @default(uuid())
+  partnerApiKeyId String
+  partnerApiKey   PartnerApiKey @relation(fields: [partnerApiKeyId], references: [id], onDelete: Cascade)
+  keyHash         String        @db.VarChar(64)
+  bodyHash        String        @db.VarChar(64)
+  reservationId   String
+  reservation     Reservation   @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+
+  @@unique([partnerApiKeyId, keyHash])
+  @@index([reservationId])
+}
+
+/// G2: persisted outbound partner webhook attempts (`reservation.created`, `reservation.cancelled`, `reservation.status_changed`, … + HMAC body); processed by internal cron / worker.
+enum PartnerWebhookDeliveryStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  DEAD
+}
+
+model PartnerWebhookDelivery {
+  id              String                       @id @default(uuid())
+  partnerApiKeyId String
+  partnerApiKey   PartnerApiKey                @relation(fields: [partnerApiKeyId], references: [id], onDelete: Cascade)
+  reservationId   String
+  reservation     Reservation                  @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  /// e.g. `reservation.created`
+  event           String                       @db.VarChar(64)
+  /// Exact UTF-8 JSON POST body (HMAC is computed over this string at delivery time using the key’s current secret).
+  bodyJson        String                       @db.Text
+  status          PartnerWebhookDeliveryStatus @default(PENDING)
+  attemptCount    Int                          @default(0)
+  maxAttempts     Int                          @default(8)
+  nextAttemptAt   DateTime                     @default(now())
+  lastAttemptAt   DateTime?
+  lastHttpStatus  Int?
+  lastError       String?                      @db.Text
+  succeededAt     DateTime?
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([partnerApiKeyId])
+  @@index([reservationId])
+}
+
+/// Pickup / return location (Europe/Rome default)
+model Station {
+  id         String   @id @default(uuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name       String
+  code       String
+  addressLine String
+  city       String
+  province   String
+  postalCode String
+  country    String   @default("IT")
+  timeZone   String   @default("Europe/Rome")
+  /// Optional D5 codice / reporting hint for the branch (portale or middleware)
+  cargosLocationCode String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  vehicles   Vehicle[]
+  pickupRes   Reservation[] @relation("ReservationPickup")
+  returnRes   Reservation[] @relation("ReservationReturn")
+  staffUsers  User[]         @relation("StaffAtStation")
+
+  @@index([companyId])
+  @@unique([companyId, code])
+}
+
+// --- Fleet & calendar ---
+
+/// “Economy / SUV / …” within a company
+model VehicleClass {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  code      String
+  /// Base rent per 24h “rental day” (see shared `countRentalDays24h`); optional until configured
+  defaultDailyCents   Int?
+  /// Suggested security deposit in minor units (e.g. pre-auth hold)
+  defaultDepositCents Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  vehicles  Vehicle[]
+  seasonalRates VehicleClassSeasonalRate[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+}
+
+/// Optional daily override for a calendar-date window (inclusive, UTC YYYY-MM-DD) per class;
+/// for each 24h billing day the highest-`priority` row covering that day wins; else `defaultDailyCents`.
+model VehicleClassSeasonalRate {
+  id             String   @id @default(uuid())
+  vehicleClassId String
+  vehicleClass   VehicleClass @relation(fields: [vehicleClassId], references: [id], onDelete: Cascade)
+  /// Inclusive, stored as date (00:00 UTC)
+  validFrom      DateTime @db.Date
+  /// Inclusive
+  validTo        DateTime @db.Date
+  dailyCents     Int
+  /// Higher wins when multiple windows cover the same calendar day
+  priority       Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([vehicleClassId])
+}
+
+enum VehicleType {
+  CAR
+  SCOOTER
+  VAN
+  OTHER
+}
+
+enum VehicleStatus {
+  AVAILABLE
+  RENTED
+  MAINTENANCE
+  OUT_OF_FLEET
+  TRANSIT
+}
+
+enum VehicleRentPricingMode {
+  /// Use class `defaultDailyCents` + seasonal rates (existing behaviour)
+  USE_CLASS
+  /// `rentOverrideDailyCents` × `countRentalDays24h` (ignores class seasonal)
+  FIXED_DAILY
+  /// `flatTripRentCents` for the whole trip window (ignores day count; still + one-way + extras)
+  FLAT_TRIP
+}
+
+/// Physical unit (VIN, plate, home station)
+model Vehicle {
+  id             String         @id @default(uuid())
+  companyId      String
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vehicleClassId String
+  vehicleClass   VehicleClass   @relation(fields: [vehicleClassId], references: [id], onDelete: Restrict)
+  homeStationId  String
+  homeStation    Station        @relation(fields: [homeStationId], references: [id], onDelete: Restrict)
+  vin            String?
+  licensePlate   String
+  vehicleType    VehicleType
+  status         VehicleStatus  @default(AVAILABLE)
+  odometerKm     Int            @default(0)
+  /// When the unit was acquired (purchase / lease start) — optional; for service-plan context
+  acquiredAt                  DateTime?
+  /// Alert when `odometerKm` reaches or exceeds this value (optional maintenance reminder)
+  nextServiceDueOdometerKm  Int?
+  /// F3: when set (1–336), worker/cron may create a MAINTENANCE `CalendarBlock` once per due threshold
+  autoServiceBlockHours     Int?
+  /// F3: last `nextServiceDueOdometerKm` for which an auto block was recorded; cleared when due km is edited
+  serviceDueAutoBlockedForKm Int?
+  fuelType       String?
+  modelLabel     String?
+  coverImageUrl  String?
+  /// Optional per-unit rent model (reservation auto-total uses this when not `USE_CLASS`)
+  rentPricingMode         VehicleRentPricingMode @default(USE_CLASS)
+  /// Cents per 24h rental day when mode is FIXED_DAILY
+  rentOverrideDailyCents  Int?
+  /// Gross rent for whole booking when mode is FLAT_TRIP (before one-way / extras)
+  flatTripRentCents       Int?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  blocks         CalendarBlock[]
+  reservations   Reservation[]
+
+  @@index([companyId])
+  @@index([vehicleClassId])
+  @@index([homeStationId])
+  @@unique([companyId, licensePlate])
+}
+
+enum CalendarBlockType {
+  MAINTENANCE
+  BUFFER
+  HOLD
+  OTHER
+}
+
+/// Non-rentable window (maintenance, buffer, etc.) — half-open [startsAt, endsAt) in business logic
+model CalendarBlock {
+  id        String            @id @default(uuid())
+  vehicleId String
+  vehicle   Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  startsAt  DateTime
+  endsAt    DateTime
+  type      CalendarBlockType @default(MAINTENANCE)
+  reason    String?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([vehicleId])
+  @@index([startsAt, endsAt])
+}
+
+// --- Customer (B1 / PRODUCTION-READINESS; CRM for fiscal & GDPR later) ---
+
+/// Renter / lead within a company; `email` is unique per company for deduplication
+model Customer {
+  id         String   @id @default(uuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name       String
+  email      String
+  phone      String
+  notes      String?
+  /// B3: Italian codice fiscale (person or business form)
+  fiscalCode  String?  @db.VarChar(32)
+  /// B3: Partita IVA (11 digits) — v1 no strict check
+  vatNumber     String?  @db.VarChar(20)
+  /// B3: SDI codice destinatario (usually 7 alnum) or 0000000; max 10 for special cases
+  sdiRecipientCode String? @db.VarChar(10)
+  /// B3: PEC for B2B e-invoicing (if used in your SDI process)
+  pec        String?  @db.VarChar(320)
+  /// B4: free-text or doc version id for privacy / processing notice acceptance
+  privacyNoticeVersion     String?   @db.VarChar(64)
+  privacyNoticeAcceptedAt  DateTime?
+  marketingEmailOptIn      Boolean   @default(false)
+  marketingOptInAt         DateTime?
+  /// B4: when set, PII is cleared; record kept for referential integrity
+  anonymizedAt             DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  reservations Reservation[]
+  documents    CustomerDocument[]
+
+  @@unique([companyId, email])
+  @@index([companyId])
+}
+
+/// Identity / licence document for KYC (B2 / PRODUCTION-READINESS); same storage stack as agreement attachments
+enum CustomerDocumentType {
+  ID_CARD
+  DRIVING_LICENSE
+  PASSPORT
+  OTHER
+}
+
+/// G3: async OCR pipeline status (v1: mock vendor only; suggestions never auto-write `Customer` fields).
+enum CustomerDocumentOcrStatus {
+  NONE
+  PENDING
+  READY
+  FAILED
+}
+
+model CustomerDocument {
+  id                 String   @id @default(uuid())
+  companyId          String
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customerId         String
+  customer           Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  docType            CustomerDocumentType
+  originalName       String
+  mimeType           String
+  sizeBytes          Int
+  storageKey         String   @unique
+  storage            AgreementAttachmentStorage @default(LOCAL)
+  uploadCompletedAt  DateTime?
+  uploadedByUserId   String?
+  uploadedBy         User?    @relation("CustomerDocumentUploads", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  /// Optional retention: worker purges file + row when `retentionUntil` ≤ now (B2)
+  retentionUntil     DateTime?
+  /// B2: staff marked ID/licence as reviewed (optional handover gate when env requires verified docs)
+  verifiedAt         DateTime?
+  verifiedByUserId   String?
+  verifiedBy         User?    @relation("CustomerDocumentVerifiedBy", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
+  /// G3: machine-readable suggestion only — staff must apply explicitly.
+  ocrStatus              CustomerDocumentOcrStatus @default(NONE)
+  ocrSuggestionJson      Json?
+  ocrCompletedAt         DateTime?
+  ocrVendor              String?  @db.VarChar(64)
+  ocrError               String?  @db.Text
+  ocrAppliedAt           DateTime?
+  ocrAppliedByUserId     String?
+  ocrAppliedBy           User?    @relation("CustomerDocumentOcrAppliedBy", fields: [ocrAppliedByUserId], references: [id], onDelete: SetNull)
+  createdAt          DateTime @default(now())
+
+  @@index([customerId])
+  @@index([companyId])
+  @@index([retentionUntil])
+  @@index([verifiedByUserId])
+  @@index([ocrStatus])
+}
+
+// --- Reservations & pricing (skeleton) ---
+
+enum ReservationStatus {
+  QUOTE
+  PENDING_PAYMENT
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
+/// Stripe deposit: manual-capture hold (receipt via Checkout); staff captures or cancels the PI
+enum DepositHoldStatus {
+  NONE
+  PENDING
+  UNCAPTURED
+  CAPTURED
+  CANCELED
+  FAILED
+}
+
+/// How the row was first created (immutable in v1). `PUBLIC_WEB` = unauthenticated `POST /v1/public/quote-reservations`. `PARTNER` = `POST /v1/partner/reservations` with a company API key.
+enum ReservationSource {
+  STAFF
+  PUBLIC_WEB
+  PARTNER
+}
+
+/// E1: Stripe refunds created via desk/API (amount + `re_…` id) for reconciliation exports
+enum StripeRefundKind {
+  RENTAL
+  DEPOSIT
+}
+
+model StripeRefundLedger {
+  id              String           @id @default(uuid())
+  companyId       String
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reservationId   String
+  reservation     Reservation      @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  stripeRefundId  String           @unique
+  amountCents     Int
+  currency        String           @default("EUR")
+  kind            StripeRefundKind
+  createdByUserId String?
+  createdBy       User?            @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime         @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([reservationId])
+}
+
+/// Half-open [pickupAt, returnAt) — align with calendar blocks
+model Reservation {
+  id              String            @id @default(uuid())
+  companyId       String
+  company         Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vehicleId       String
+  vehicle         Vehicle          @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  pickupStationId String
+  pickupStation   Station          @relation("ReservationPickup", fields: [pickupStationId], references: [id], onDelete: Restrict)
+  returnStationId String
+  returnStation   Station          @relation("ReservationReturn", fields: [returnStationId], references: [id], onDelete: Restrict)
+  pickupAt        DateTime
+  returnAt        DateTime
+  status          ReservationStatus @default(QUOTE)
+  source          ReservationSource @default(STAFF)
+  /// G2: Partner API key that created this row when `source` is PARTNER (staff/Stripe status updates enqueue `reservation.status_changed` to this key).
+  createdByPartnerApiKeyId String?
+  createdByPartnerApiKey   PartnerApiKey? @relation("ReservationCreatedByPartnerKey", fields: [createdByPartnerApiKeyId], references: [id], onDelete: SetNull)
+  /// Optional link to `Customer` (staff or future flows); set null if customer is deleted
+  customerId      String?
+  customer        Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerName    String
+  customerEmail   String
+  customerPhone   String
+  /// Total in minor units (e.g. cents); optional until checkout / invoice
+  totalCents      Int?
+  currency        String            @default("EUR")
+  /// Last Checkout Session (payment mode); set when staff creates a pay link
+  stripeCheckoutSessionId String?  @unique
+  /// Set when Checkout completes successfully (webhook) or you record payment elsewhere
+  paidAt          DateTime?
+  /// Security deposit: last Checkout for manual-capture hold (customer completes → UNCAPTURED)
+  stripeDepositCheckoutSessionId String? @unique
+  /// Filled by webhook; used for capture / cancel
+  stripeDepositPaymentIntentId   String? @unique
+  /// Intended or held amount in minor units (e.g. cents)
+  depositHoldCents               Int?
+  depositHoldStatus              DepositHoldStatus @default(NONE)
+  notes           String?
+  /// C3: unguessable token for unauthenticated “view my booking” (only for `PUBLIC_WEB` quotes/orders)
+  publicViewToken   String?   @unique @db.VarChar(64)
+  publicViewTokenAt DateTime?
+  /// C2: one-time rent payment reminder email was sent at (worker/cron)
+  rentPaymentReminderSentAt DateTime?
+  /// Km on the odometer at handover (optional until checkout)
+  odometerOutKm   Int?
+  /// Km on the odometer at return; when status is COMPLETED, syncs to Vehicle.odometerKm
+  odometerInKm    Int?
+  /// Audited exception: handover may proceed without successful CaRGOS (Italy) — D3
+  cargosHandoverOverrideAt   DateTime?
+  cargosHandoverOverrideById String?
+  cargosHandoverOverrideBy   User?    @relation("CargosHandoverOverrideBy", fields: [cargosHandoverOverrideById], references: [id], onDelete: SetNull)
+  cargosHandoverOverrideReason String? @db.Text
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  extraLines      ReservationExtraLine[]
+  rentalAgreement RentalAgreement?
+  cargosSubmissions CargosSubmission[]
+  /// F1: fuel level at handover/return (0–100), optional odometer already on `odometerOutKm` / `odometerInKm`
+  fuelOutPercent  Int?
+  fuelInPercent   Int?
+  /// JSON: `{ "items": [ { "key", "label", "ok" } ] }` — v1 default keys from shared `defaultOpsChecklistTemplate`
+  handoverChecklistJson Json?
+  returnChecklistJson  Json?
+  handoverOpsNotes     String? @db.Text
+  returnOpsNotes       String? @db.Text
+  operationPhotos      ReservationOperationPhoto[]
+  damageReport         DamageReport?
+  invoices             Invoice[]
+  stripeRefundLedgers  StripeRefundLedger[]
+  partnerIdempotencies PartnerReservationIdempotency[]
+  partnerWebhookDeliveries PartnerWebhookDelivery[]
+
+  @@index([companyId])
+  @@index([vehicleId, pickupAt, returnAt])
+  @@index([status])
+  @@index([source])
+  @@index([customerId])
+  @@index([createdByPartnerApiKeyId])
+}
+
+/// E3: fiscal document (non-SDI in v1); **issue** assigns `documentNumber` from `InvoiceFiscalSequence`
+enum InvoiceDocumentKind {
+  INVOICE
+  CREDIT_NOTE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  VOID
+}
+
+/// Atomic per-company calendar-year counter for issued invoice numbers
+model InvoiceFiscalSequence {
+  companyId  String
+  year       Int
+  lastIssued Int      @default(0)
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  updatedAt  DateTime @updatedAt
+
+  @@id([companyId, year])
+  @@index([companyId])
+}
+
+/// Rental / fee invoice or credit note (v1: single VAT bucket on the document)
+model Invoice {
+  id                String   @id @default(uuid())
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reservationId     String?
+  reservation       Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+  kind              InvoiceDocumentKind @default(INVOICE)
+  status            InvoiceStatus    @default(DRAFT)
+  /// Set for **CREDIT_NOTE** — must reference an **ISSUED** `INVOICE`
+  creditedInvoiceId String?
+  creditedInvoice   Invoice?  @relation("InvoiceCreditCredited", fields: [creditedInvoiceId], references: [id], onDelete: Restrict)
+  creditingNotes    Invoice[] @relation("InvoiceCreditCredited")
+  /// Set on **issue** (with `issueSequence`); null while **DRAFT** (Postgres unique allows many NULL triples)
+  issueYear         Int?
+  issueSequence     Int?
+  /// Human number, e.g. `2026/00001`
+  documentNumber    String?  @db.VarChar(40)
+  subtotalCents     Int
+  vatRateBps        Int      @default(2200)
+  vatCents          Int
+  totalCents        Int
+  currency          String   @default("EUR") @db.VarChar(3)
+  description       String?  @db.Text
+  issuedAt          DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([companyId, issueYear, issueSequence])
+  @@index([companyId, status, createdAt])
+  @@index([reservationId])
+  @@index([creditedInvoiceId])
+  sdiSubmissions  SdiInvoiceSubmission[]
+}
+
+/// E4: one SDI handoff attempt per **issued** document (FatturaPA build out-of-band; this row tracks status)
+enum SdiSubmissionStatus {
+  PENDING
+  PROCESSING
+  /// Dev / MOCK adapter only
+  MOCK_SENT
+  /// Company **OFF** or not applicable
+  SKIPPED
+  FAILED
+  /// HTTP 2xx from middleware
+  SENT
+}
+
+model SdiInvoiceSubmission {
+  id               String   @id @default(uuid())
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceId        String
+  invoice          Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  status           SdiSubmissionStatus @default(PENDING)
+  /// Exchange / middleware id when **SENT** / **MOCK_SENT** (Agenzia id tracciatura when wired to real SDI)
+  idTracciatura    String?  @db.VarChar(120)
+  errorMessage     String?  @db.Text
+  attemptCount     Int      @default(0)
+  processedAt      DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([companyId, status])
+  @@index([invoiceId, createdAt])
+}
+
+/// Polizia CaRGOS transmission record (ARCHITECTURE §3.6) — v1 worker simulates success, no live portale API
+enum CargosSubmissionStatus {
+  PENDING
+  PROCESSING
+  MOCK_SENT
+  /// Polizia transmission not required (company out of scope or adapter OFF) or max retries exceeded
+  SKIPPED
+  FAILED
+}
+
+model CargosSubmission {
+  id              String   @id @default(uuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reservationId   String
+  reservation     Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  status          CargosSubmissionStatus @default(PENDING)
+  /// Set when status is FAILED (worker or future adapter)
+  errorMessage    String?
+  /// D4: retry counter for HTTP/adapter failures
+  attemptCount    Int        @default(0)
+  processedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([companyId, status])
+  @@index([reservationId, createdAt])
+}
+
+enum RentalAgreementStatus {
+  DRAFT
+  SIGNED
+  VOID
+}
+
+/// One rental agreement (terms snapshot) per reservation; desk edits body while DRAFT, then signs (customer attestation).
+model RentalAgreement {
+  id            String   @id @default(uuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reservationId String   @unique
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  status        RentalAgreementStatus @default(DRAFT)
+  /// Lawyer-approved template label frozen at create/sign for audit (e.g. ITA-RENT-2024-1)
+  agreementTemplateVersion String?
+  /// Editable while DRAFT; treated as frozen after SIGNED in v1
+  body          String   @db.Text
+  signedAt      DateTime?
+  signedByName  String?
+  /// HTTP client at sign time (desk browser behind trust proxy) — e-sign evidence
+  signedClientIp   String?
+  /// Truncated User-Agent at sign time
+  signedUserAgent  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  attachments   RentalAgreementAttachment[]
+
+  @@index([companyId])
+}
+
+enum AgreementAttachmentStorage {
+  LOCAL
+  S3
+}
+
+/// Files linked to a rental agreement (local disk and/or S3-compatible object storage)
+model RentalAgreementAttachment {
+  id                 String   @id @default(uuid())
+  companyId          String
+  rentalAgreementId  String
+  rentalAgreement    RentalAgreement @relation(fields: [rentalAgreementId], references: [id], onDelete: Cascade)
+  /// Original filename (sanitized in API)
+  originalName       String
+  mimeType           String
+  sizeBytes          Int
+  /// Object key: `{companyId}/{agreementId}/{id}.{ext}` ( bucket is configured in env, not in DB )
+  storageKey         String   @unique
+  storage            AgreementAttachmentStorage @default(LOCAL)
+  /// Set when bytes are on disk; for S3, set after successful presigned PUT (see `uploadCompletedAt`)
+  uploadCompletedAt  DateTime?
+  uploadedByUserId   String?
+  uploadedBy         User?    @relation("AgreementAttachmentUploads", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  createdAt          DateTime @default(now())
+
+  @@index([rentalAgreementId])
+  @@index([companyId])
+}
+
+/// Optional add-ons — included in auto total (rent + one-way + sum)
+model ReservationExtraLine {
+  id            String   @id @default(uuid())
+  reservationId String
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  label         String
+  amountCents   Int
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([reservationId])
+}
+
+// --- F1 / F2: handover/return & damage (PRODUCTION-READINESS step 10) ---
+
+/// Vehicle condition photos at handover (out) or return (in)
+enum ReservationPhotoPhase {
+  HANDOVER
+  RETURN
+}
+
+model ReservationOperationPhoto {
+  id              String   @id @default(uuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reservationId   String
+  reservation     Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  phase           ReservationPhotoPhase
+  originalName    String
+  mimeType        String
+  sizeBytes       Int
+  storageKey      String   @unique
+  storage         AgreementAttachmentStorage @default(LOCAL)
+  uploadCompletedAt DateTime?
+  uploadedByUserId  String?
+  uploadedBy        User?    @relation("ReservationOperationPhotoUploads", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  createdAt         DateTime @default(now())
+
+  @@index([reservationId, phase])
+  @@index([companyId])
+}
+
+enum DamageReportStatus {
+  DRAFT
+  CLOSED
+}
+
+/// F2: at most one per reservation in v1
+model DamageReport {
+  id                    String   @id @default(uuid())
+  companyId             String
+  company               Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reservationId         String   @unique
+  reservation           Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  status                DamageReportStatus @default(DRAFT)
+  notes                 String?  @db.Text
+  /// Informational: align with `deposit capture` in Stripe; no automatic capture in v1
+  suggestedCaptureCents Int?
+  createdByUserId       String
+  createdBy             User     @relation("DamageReportCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  lines                 DamageLine[]
+  photos                DamageReportPhoto[]
+
+  @@index([companyId])
+}
+
+model DamageLine {
+  id               String  @id @default(uuid())
+  damageReportId   String
+  damageReport     DamageReport @relation(fields: [damageReportId], references: [id], onDelete: Cascade)
+  area             String
+  description      String  @db.Text
+  estimatedFeeCents Int?
+  sortOrder        Int     @default(0)
+  createdAt        DateTime @default(now())
+
+  @@index([damageReportId])
+}
+
+model DamageReportPhoto {
+  id               String   @id @default(uuid())
+  companyId        String
+  company          Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  damageReportId   String
+  damageReport     DamageReport @relation(fields: [damageReportId], references: [id], onDelete: Cascade)
+  originalName     String
+  mimeType         String
+  sizeBytes        Int
+  storageKey       String   @unique
+  storage          AgreementAttachmentStorage @default(LOCAL)
+  uploadCompletedAt DateTime?
+  uploadedByUserId  String?
+  uploadedBy         User?    @relation("DamageReportPhotoUploads", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now())
+
+  @@index([damageReportId])
+  @@index([companyId])
+}
+
+// --- Staff & audit (ARCHITECTURE §3.1) ---
+
+enum UserRole {
+  ADMIN
+  BRANCH_MANAGER
+  AGENT
+  READONLY_ACCOUNTING
+}
+
+model User {
+  id             String   @id @default(uuid())
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Optional: counter / branch the agent mainly works at
+  stationId      String?
+  homeStation    Station?  @relation("StaffAtStation", fields: [stationId], references: [id], onDelete: SetNull)
+  email          String   @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  role           UserRole
+  isActive       Boolean  @default(true)
+  lastLoginAt    DateTime?
+  /// A2: failed password attempts since last success (reset on successful sign-in or unlock)
+  failedLoginAttempts Int   @default(0)
+  /// A2: when set and in the future, password sign-in is rejected (optional; see AUTH_LOGIN_MAX_ATTEMPTS)
+  lockedUntil   DateTime?
+  /// A3: TOTP (ADMIN / BRANCH_MANAGER only for setup; enforced at login when enabled)
+  mfaEnabled     Boolean  @default(false)
+  mfaSecret      String?  @db.Text
+  /// A3: bcrypt hashes of one-time backup codes (shown once on enable / regenerate)
+  mfaBackupCodeHashes Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  auditLogs      AuditLog[]
+  agreementUploads RentalAgreementAttachment[] @relation("AgreementAttachmentUploads")
+  customerDocumentUploads CustomerDocument[] @relation("CustomerDocumentUploads")
+  customerDocumentsVerified  CustomerDocument[] @relation("CustomerDocumentVerifiedBy")
+  customerDocumentsOcrApplied CustomerDocument[] @relation("CustomerDocumentOcrAppliedBy")
+  cargosHandoverOverrides  Reservation[] @relation("CargosHandoverOverrideBy")
+  reservationOperationPhotoUploads ReservationOperationPhoto[] @relation("ReservationOperationPhotoUploads")
+  damageReportsCreated  DamageReport[] @relation("DamageReportCreatedBy")
+  damageReportPhotoUploads DamageReportPhoto[] @relation("DamageReportPhotoUploads")
+  passwordResetTokens     PasswordResetToken[]
+  stripeRefundLedgers     StripeRefundLedger[]
+  partnerApiKeysCreated   PartnerApiKey[] @relation("PartnerApiKeyCreatedBy")
+
+  @@index([companyId])
+  @@index([email])
+}
+
+/// H2: one-time staff password reset (raw token emailed; only SHA-256 hex stored)
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/// Append-only log for important actions
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  entity     String
+  entityId   String?
+  metadata   Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, createdAt])
+}
+
+/// Stripe `event.id` (evt_…) — at-most-once application of webhook side effects
+model ProcessedStripeEvent {
+  id        String   @id /// evt_…
+  type      String
+  createdAt DateTime @default(now())
+}
