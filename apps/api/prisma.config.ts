@@ -1,4 +1,4 @@
-import { defineConfig } from '@prisma/internals';
+import { defineConfig } from 'prisma';
 
 export default defineConfig({
   seed: 'tsx ./prisma/seed.ts',
