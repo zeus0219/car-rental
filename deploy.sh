@@ -164,8 +164,10 @@ echo ""
 # Step 9: Database Setup
 echo "🗄️ Setting up database..."
 sleep 5
-docker exec car-rental-api sh -c "cd /app/apps/api && npx prisma db push --skip-generate"
-docker exec car-rental-api sh -c "cd /app/apps/api && npx prisma db seed"
+cd "$PROJECT_DIR/apps/api"
+pnpm exec prisma db push --schema prisma/schema.prisma --skip-generate
+pnpm exec prisma db seed --schema prisma/schema.prisma
+cd "$PROJECT_DIR"
 
 echo "✅ Database setup complete"
 echo ""
