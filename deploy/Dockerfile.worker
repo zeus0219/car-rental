@@ -4,7 +4,8 @@
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
 RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json tsconfig.json ./
+COPY scripts/prisma-generate-retry.cjs scripts/
 COPY apps/api/package.json apps/api/
 COPY apps/worker/package.json apps/worker/
 COPY packages/shared/package.json packages/shared/
