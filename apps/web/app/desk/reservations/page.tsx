@@ -12,6 +12,7 @@ import { apiJson } from '../../../lib/api';
 import { translateDeskApiErrorLine } from '../../../lib/desk-api-error-i18n';
 import { formatDeskCargosSubmissionStatus } from '../../../lib/desk-cargos-submission-status';
 import { formatDepositHoldStatus } from '../../../lib/desk-deposit-hold-label';
+import { formatDamageReportStatus } from '../../../lib/desk-damage-report-status';
 import { formatRentalAgreementStatus } from '../../../lib/desk-rental-agreement-status';
 import { formatDeskReservationSource } from '../../../lib/desk-reservation-source-label';
 import { formatDeskReservationStatus } from '../../../lib/desk-reservation-status-label';
@@ -43,6 +44,13 @@ type Res = {
     signedAt: string | null;
     signedByName: string | null;
     signedClientIp: string | null;
+    _count?: { attachments: number };
+  } | null;
+  damageReport: {
+    id: string;
+    status: string;
+    notes: string | null;
+    _count?: { photos: number; lines: number };
   } | null;
   vehicle: { licensePlate: string; modelLabel: string | null };
   pickupStation: { name: string; code: string };
@@ -117,9 +125,13 @@ function agreementListCell(
   }
   const ver = r.agreementTemplateVersion?.trim();
   const statusLabel = formatRentalAgreementStatus(r.status, t);
+  const n = r._count?.attachments ?? 0;
   const parts = [statusLabel];
   if (ver) {
     parts.push(ver);
+  }
+  if (n > 0) {
+    parts.push(t('desk.reservations.agreement.filesN').replace('{n}', String(n)));
   }
   const short = parts.join(' · ');
   const L = (key: PublicMessageKey, value: string) => t(key).replace('{value}', value);
@@ -129,8 +141,35 @@ function agreementListCell(
     L('desk.reservations.agreement.lineSignedAt', r.signedAt || dash),
     L('desk.reservations.agreement.lineSignedAs', r.signedByName || dash),
     L('desk.reservations.agreement.lineClientIp', r.signedClientIp || dash),
+    L('desk.reservations.agreement.lineAttachments', n > 0 ? String(n) : dash),
   ];
   return { short, title: titleLines.join('\n') };
+}
+
+function damageListCell(
+  d: Res['damageReport'],
+  t: (k: PublicMessageKey) => string,
+): { short: string; title: string } {
+  const dash = t('desk.fleet.quote.emDash');
+  if (!d) {
+    return { short: dash, title: t('desk.reservations.damage.none') };
+  }
+  const statusLabel = formatDamageReportStatus(d.status, t);
+  const lines = d._count?.lines ?? 0;
+  const photos = d._count?.photos ?? 0;
+  const short = t('desk.reservations.damage.short')
+    .replace('{status}', statusLabel)
+    .replace('{lines}', String(lines))
+    .replace('{photos}', String(photos));
+  const note = d.notes?.trim();
+  const title = [
+    statusLabel,
+    t('desk.reservations.damage.titleLines').replace('{lines}', String(lines)).replace('{photos}', String(photos)),
+    note ? `${t('desk.reservations.damage.notes')}: ${note}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return { short, title };
 }
 
 function downloadReservationsCsv(rows: Res[], companyId: string) {
@@ -706,6 +745,7 @@ function ReservationsPageContent() {
                 <th>{t('desk.reservations.th.deposit')}</th>
                 <th>{t('desk.reservations.th.extras')}</th>
                 <th title={t('desk.reservations.th.agreementTitle')}>{t('desk.reservations.th.agreement')}</th>
+                <th title={t('desk.reservations.th.damageTitle')}>{t('desk.reservations.th.damage')}</th>
                 <th>{t('desk.reservations.th.cargos')}</th>
                 {canWrite && <th>{t('desk.reservations.th.quick')}</th>}
                 {canWrite && <th>{t('desk.reservations.th.actions')}</th>}
@@ -715,6 +755,7 @@ function ReservationsPageContent() {
               {rows.map((r) => {
                 const c = cargosByRes.get(r.id);
                 const agr = r.rentalAgreement ? agreementListCell(r.rentalAgreement, t) : null;
+                const dmg = damageListCell(r.damageReport, t);
                 const em = t('desk.fleet.quote.emDash');
                 const src = formatDeskReservationSource(r.source, t);
                 return (
@@ -844,6 +885,11 @@ function ReservationsPageContent() {
                       ) : (
                         <span className="desk-muted">{em}</span>
                       )}
+                    </td>
+                    <td>
+                      <code style={{ fontSize: '0.82rem' }} title={dmg.title}>
+                        {dmg.short}
+                      </code>
                     </td>
                     <td>
                       <div>

@@ -20,6 +20,7 @@ const baseLinks: NavDef[] = [
   { href: '/desk/calendar', key: 'desk.nav.calendar', when: deskNavShowsFleetAndCalendar },
   { href: '/desk/customers', key: 'desk.nav.customers' },
   { href: '/desk/reservations', key: 'desk.nav.reservations' },
+  { href: '/desk/operations', key: 'desk.nav.operations' },
   { href: '/desk/reconciliation', key: 'desk.nav.reconciliation' },
   { href: '/desk/reports', key: 'desk.nav.reports' },
   { href: '/desk/invoices', key: 'desk.nav.invoices' },

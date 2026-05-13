@@ -125,6 +125,7 @@ export class ReservationService {
       vehicleId?: string;
       customerId?: string;
       status?: string;
+      statuses?: (typeof reservationStatusValues)[number][];
       from?: Date;
       to?: Date;
       source?: 'STAFF' | 'PUBLIC_WEB' | 'PARTNER';
@@ -164,7 +165,11 @@ export class ReservationService {
       ...(companyId && { companyId }),
       ...(q.vehicleId && { vehicleId: q.vehicleId }),
       ...(q.customerId && { customerId: q.customerId }),
-      ...(q.status && { status: q.status }),
+      ...(q.statuses?.length
+        ? { status: { in: q.statuses } }
+        : q.status
+          ? { status: q.status }
+          : {}),
       ...(q.source && { source: q.source }),
       ...(q.from &&
         q.to && {
@@ -193,6 +198,15 @@ export class ReservationService {
             signedAt: true,
             signedByName: true,
             signedClientIp: true,
+            _count: { select: { attachments: true } },
+          },
+        },
+        damageReport: {
+          select: {
+            id: true,
+            status: true,
+            notes: true,
+            _count: { select: { photos: true, lines: true } },
           },
         },
         customer: { select: { id: true, name: true, email: true, phone: true } },

@@ -2275,6 +2275,37 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
               maxLength={500000}
               style={{ width: '100%', fontSize: '0.9rem' }}
             />
+            {agreementBody.trim() !== '' && (
+              <div className="desk-tool" style={{ marginTop: '0.35rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const w = window.open('', '_blank', 'noopener,noreferrer');
+                    if (!w) {
+                      return;
+                    }
+                    w.document.title = t('desk.res.form.printAgreementTitle');
+                    const pre = w.document.createElement('pre');
+                    pre.style.whiteSpace = 'pre-wrap';
+                    pre.style.fontFamily = 'system-ui, sans-serif';
+                    pre.style.padding = '1rem';
+                    pre.textContent = agreementBody;
+                    w.document.body.appendChild(pre);
+                    w.document.close();
+                    w.focus();
+                    w.print();
+                    window.setTimeout(() => {
+                      w.close();
+                    }, 500);
+                  }}
+                >
+                  {t('desk.res.form.printAgreement')}
+                </button>
+                <span className="desk-muted" style={{ fontSize: '0.8rem' }}>
+                  {t('desk.res.form.attachPrintHint')}
+                </span>
+              </div>
+            )}
             {agreementId && (
               <div style={{ margin: '0.5rem 0' }}>
                 <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>{t('desk.res.form.attachHeading')}</p>

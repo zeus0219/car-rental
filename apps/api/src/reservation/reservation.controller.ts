@@ -15,7 +15,12 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
-import { createReservationSchema, reservationSourceValues, updateReservationSchema } from '@car-rental/shared';
+import {
+  createReservationSchema,
+  reservationSourceValues,
+  reservationStatusValues,
+  updateReservationSchema,
+} from '@car-rental/shared';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
@@ -24,15 +29,36 @@ import { OPENAPI_JWT } from '../openapi.constants';
 import { ReservationService } from './reservation.service';
 import type { Request } from 'express';
 
+const reservationStatusEnum = z.enum(reservationStatusValues);
+
 const listQuerySchema = z
   .object({
     companyId: z.string().uuid().optional(),
     vehicleId: z.string().uuid().optional(),
     customerId: z.string().uuid().optional(),
-    status: z.string().optional(),
+    status: z.preprocess(
+      (v) => (v === '' || v == null ? undefined : v),
+      reservationStatusEnum.optional(),
+    ),
+    statuses: z.preprocess((v) => {
+      if (typeof v !== 'string' || !v.trim()) {
+        return undefined;
+      }
+      const parts = v.split(',').map((x) => x.trim()).filter(Boolean);
+      return parts.length ? parts : undefined;
+    }, z.array(reservationStatusEnum).max(20).optional()),
     from: z.coerce.date().optional(),
     to: z.coerce.date().optional(),
     source: z.enum(reservationSourceValues).optional(),
+  })
+  .superRefine((a, ctx) => {
+    if (a.status && a.statuses?.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Use either status or statuses, not both',
+        path: ['statuses'],
+      });
+    }
   })
   .refine(
     (a) =>
@@ -40,10 +66,11 @@ const listQuerySchema = z
       Boolean(a.vehicleId) ||
       Boolean(a.customerId) ||
       Boolean(a.status) ||
+      Boolean(a.statuses?.length) ||
       (Boolean(a.from) && Boolean(a.to)) ||
       Boolean(a.source),
     {
-      message: 'Set companyId, vehicleId, customerId, status, from+to, or source',
+      message: 'Set companyId, vehicleId, customerId, status, statuses, from+to, or source',
     },
   );
 
@@ -61,6 +88,7 @@ export class ReservationController {
     @Query('vehicleId') vehicleId: string | undefined,
     @Query('customerId') customerId: string | undefined,
     @Query('status') status: string | undefined,
+    @Query('statuses') statuses: string | undefined,
     @Query('from') fromStr: string | undefined,
     @Query('to') toStr: string | undefined,
     @Query('source') source: string | undefined,
@@ -70,6 +98,7 @@ export class ReservationController {
       vehicleId,
       customerId,
       status,
+      statuses,
       from: fromStr,
       to: toStr,
       source,
