@@ -1,8 +1,22 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { JwtUser } from './types';
 
+/** When `1`/`true`/`yes`, `ADMIN` users are **company-bound** like other roles (no cross-tenant lists or resource bypass). */
+function enforceStaffSingleCompany(): boolean {
+  const v = process.env.ENFORCE_STAFF_SINGLE_COMPANY?.trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
 export function isAdmin(user: JwtUser): boolean {
   return user.role === 'ADMIN';
+}
+
+/**
+ * `ADMIN` who may see **all** companies in list filters and bypass `assertSameCompany` / `assertCreateBodyCompanyId`.
+ * Set **`ENFORCE_STAFF_SINGLE_COMPANY`** to disable that (recommended per-dealer production).
+ */
+export function isAdminCrossCompany(user: Pick<JwtUser, 'role'>): boolean {
+  return user.role === 'ADMIN' && !enforceStaffSingleCompany();
 }
 
 /** True when the user is a branch agent with an assigned `stationId` (branch-scoped at desk). */
@@ -69,7 +83,7 @@ export function effectiveListCompanyFilter(
   user: JwtUser,
   queryCompanyId: string | undefined,
 ): { companyId: string } | Record<string, never> {
-  if (isAdmin(user)) {
+  if (isAdminCrossCompany(user)) {
     return queryCompanyId ? { companyId: queryCompanyId } : {};
   }
   if (queryCompanyId && queryCompanyId !== user.companyId) {
@@ -83,7 +97,7 @@ export function assertSameCompany(
   resourceCompanyId: string,
   notFoundMessage: string,
 ): void {
-  if (isAdmin(user)) {
+  if (isAdminCrossCompany(user)) {
     return;
   }
   if (resourceCompanyId !== user.companyId) {
@@ -92,7 +106,7 @@ export function assertSameCompany(
 }
 
 export function assertCreateBodyCompanyId(user: JwtUser, bodyCompanyId: string): void {
-  if (isAdmin(user)) {
+  if (isAdminCrossCompany(user)) {
     return;
   }
   if (bodyCompanyId !== user.companyId) {

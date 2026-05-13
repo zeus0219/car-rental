@@ -25,6 +25,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { MailService } from '../mail/mail.service';
+import { isAdminCrossCompany } from './company-access';
 
 authenticator.options = { window: 1 };
 
@@ -593,6 +594,8 @@ export class AuthService {
       mfaSetupPending: Boolean(u.mfaSecret && !u.mfaEnabled),
       mfaCanEnable: mfaCapable(u.role),
       mfaBackupCodesRemaining: backupRemaining,
+      /** False when `ENFORCE_STAFF_SINGLE_COMPANY` is on — desk should not offer multi-company scope. */
+      adminCrossCompanyAccess: isAdminCrossCompany({ role: u.role }),
     };
   }
 

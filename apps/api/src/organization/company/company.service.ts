@@ -2,14 +2,14 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateCompanyInput, UpdateCompanyInput } from '@car-rental/shared';
 import { JwtUser } from '../../auth/types';
-import { assertCanPatchCompany, assertSameCompany, isAdmin } from '../../auth/company-access';
+import { assertCanPatchCompany, assertSameCompany, isAdminCrossCompany } from '../../auth/company-access';
 
 @Injectable()
 export class CompanyService {
   constructor(private readonly prisma: PrismaService) {}
 
   findAll(user: JwtUser) {
-    if (isAdmin(user)) {
+    if (isAdminCrossCompany(user)) {
       return this.prisma.company.findMany({
         orderBy: { name: 'asc' },
       });

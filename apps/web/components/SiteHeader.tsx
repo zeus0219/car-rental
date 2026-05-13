@@ -13,6 +13,7 @@ export function SiteHeader() {
       </Link>
       <nav className="site-header-nav" aria-label="Main">
         <Link href="/quote">{t('nav.quote')}</Link>
+        <Link href="/my">{t('nav.my')}</Link>
         <Link href="/auth">{t('nav.staff')}</Link>
       </nav>
       <div className="site-header-locale" role="group" aria-label={t('locale.label')}>

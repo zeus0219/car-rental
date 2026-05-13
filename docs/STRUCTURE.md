@@ -82,6 +82,7 @@ erDiagram
 |------|----------------|--------|
 | Marketing / entry | `/` | Public |
 | Public quote | `/quote` | Public — calls `NEXT_PUBLIC_API_URL` **without** token |
+| Renter hub (stub) | `/my` | Public — entry points for quote / booking view / staff sign-in (full renter portal TBD) |
 | Login | `/auth` | Public — stores JWT, redirects to `next` or desk (`/login` redirects to `/auth`) |
 | Back office | `/desk`, `/desk/organization`, `/desk/fleet`, `/desk/customers`, `/desk/reservations`, `/desk/team`, `/desk/audit` | **Client** layout (`DeskLayout`) requires token; uses **Bearer** `apiJson` to API |
 
@@ -99,6 +100,21 @@ erDiagram
 ## 6. How this relates to ARCHITECTURE.md
 
 [ARCHITECTURE.md](../ARCHITECTURE.md) describes the **target** platform (multi-surface, SDI, real CaRGOS, queue workers, etc.). **This repo** implements a **modular monolith** API plus one worker stub and a thin Next client — the tables above are what exists **today**, not the full future diagram in §2 of ARCHITECTURE.
+
+## 7. Dealers, branding, and renter “my area” (operations + roadmap)
+
+**Data isolation:** Fleet, stations, customers, and reservations are keyed by **`companyId`** in Prisma — dealers do not share vehicle rows. The **staff desk** (`/desk/**`) is one Next.js app; access is enforced in the API via JWT **`companyId`**, **`RolesGuard`**, and helpers in `apps/api/src/auth/company-access.ts` (including **`AGENT` + `stationId`** scoping on some lists and reservations).
+
+**So dealers “never see each other” in production:**
+
+- Prefer **one company per staff user** (each user’s `companyId` matches only their dealer).
+- Reserve **`ADMIN`** for trusted operators who genuinely need cross-company access; otherwise they can switch company context in the desk where the product allows it.
+- Use **`AGENT`** with an assigned **`stationId`** for branch-only workflows where those rules already apply.
+- Set API **`ENFORCE_STAFF_SINGLE_COMPANY=true`** so even **`ADMIN`** JWTs are **company-bound** (no `assertSameCompany` bypass, `GET /companies` only returns their dealer, list filters cannot span tenants). `GET /auth/me` includes **`adminCrossCompanyAccess`** for the desk.
+
+**Per-dealer branded site / URL:** Not implied by the code alone. Treat as **deployment / white-label**: separate hostnames, env (e.g. `NEXT_PUBLIC_API_URL`, public branding), or **separate deployments** per dealer against the same or split databases — see [PRODUCTION.md](PRODUCTION.md) for runtime configuration.
+
+**Renter “my area” (customer portal):** Today, renters mainly use **public** flows (`/`, `/quote`, booking links). A logged-in **“my bookings / documents / invoices”** surface would be a **new module** in `apps/web` (routes + auth story) calling **existing v1 APIs** where possible; it is **not** the same product surface as `/desk/**`. A minimal **public hub** exists at **`/my`** (links into quote, booking view, and staff sign-in — placeholder until renter auth ships).
 
 ---
 

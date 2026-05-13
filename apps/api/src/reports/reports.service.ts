@@ -6,7 +6,7 @@ import {
   type CustomerDocumentsOcrPendingQuery,
 } from '@car-rental/shared';
 import { JwtUser } from '../auth/types';
-import { isAdmin, effectiveListCompanyFilter } from '../auth/company-access';
+import { isAdminCrossCompany, effectiveListCompanyFilter } from '../auth/company-access';
 import { PrismaService } from '../prisma/prisma.service';
 
 function utcDayBounds(from: string, to: string) {
@@ -70,7 +70,7 @@ export class ReportsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getCompanyReport(q: CompanyReportQuery, user: JwtUser) {
-    if (!isAdmin(user)) {
+    if (!isAdminCrossCompany(user)) {
       if (q.companyId !== user.companyId) {
         throw new ForbiddenException('Not allowed to access this company');
       }
@@ -317,7 +317,7 @@ export class ReportsService {
 
   /** G3 — documents in OCR queue for a company (PENDING, upload complete, not applied). */
   async listCustomerDocumentsOcrPending(q: CustomerDocumentsOcrPendingQuery, user: JwtUser) {
-    if (!isAdmin(user)) {
+    if (!isAdminCrossCompany(user)) {
       if (q.companyId !== user.companyId) {
         throw new ForbiddenException('Not allowed to access this company');
       }

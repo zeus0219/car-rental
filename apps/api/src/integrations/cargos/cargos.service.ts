@@ -11,7 +11,7 @@ import {
   assertAgentReservationInScope,
   assertSameCompany,
   effectiveListCompanyFilter,
-  isAdmin,
+  isAdminCrossCompany,
   isAgentStationScoped,
 } from '../../auth/company-access';
 import { isPastCargosEnqueueCutoff } from '../../reservation/reservation-handover.util';
@@ -325,7 +325,7 @@ export class CargosService {
         `Reservation not found: ${q.reservationId}`,
       );
     }
-    if (isAdmin(user) && !q.companyId && !q.reservationId) {
+    if (isAdminCrossCompany(user) && !q.companyId && !q.reservationId) {
       throw new BadRequestException('Provide companyId and/or reservationId for CaRGOS submission list');
     }
     const companyF = effectiveListCompanyFilter(user, q.companyId);

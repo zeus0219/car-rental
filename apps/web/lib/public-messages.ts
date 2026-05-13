@@ -5,6 +5,7 @@ export const publicMessages = {
   en: {
     'nav.brand': 'Car rental',
     'nav.quote': 'Quote',
+    'nav.my': 'My rentals',
     'nav.staff': 'Staff',
     'locale.en': 'EN',
     'locale.it': 'IT',
@@ -20,6 +21,13 @@ export const publicMessages = {
     'home.staffOrOpen': 'or open the',
     'home.staffSuffix': '(requires a session).',
     'home.apiLine': 'API version · liveness · DB readiness',
+
+    'my.title': 'My rentals',
+    'my.lead':
+      'Use the quote flow for new bookings, or open a saved booking with the link you received by email. A full logged-in renter area is planned; staff use the desk.',
+    'my.linkQuote': 'Get a price estimate',
+    'my.linkBooking': 'Open booking (magic link from email)',
+    'my.linkStaff': 'Staff sign in (desk)',
 
     'quote.title': 'Get a price estimate',
     'quote.loading': 'Loading…',
@@ -2170,6 +2178,7 @@ export const publicMessages = {
   it: {
     'nav.brand': 'Noleggio auto',
     'nav.quote': 'Preventivo',
+    'nav.my': 'I miei noleggi',
     'nav.staff': 'Staff',
     'locale.en': 'EN',
     'locale.it': 'IT',
@@ -2185,6 +2194,13 @@ export const publicMessages = {
     'home.staffOrOpen': 'oppure apri la',
     'home.staffSuffix': '(serve una sessione).',
     'home.apiLine': 'Versione API · liveness · readiness DB',
+
+    'my.title': 'I miei noleggi',
+    'my.lead':
+      'Per nuove prenotazioni usa il preventivo, oppure apri il link ricevuto via email. L’area cliente con login arriverà dopo; lo staff usa il desk.',
+    'my.linkQuote': 'Richiedi un preventivo',
+    'my.linkBooking': 'Apri prenotazione (link magico dall’email)',
+    'my.linkStaff': 'Accesso staff (desk)',
 
     'quote.title': 'Richiedi un preventivo',
     'quote.loading': 'Caricamento…',

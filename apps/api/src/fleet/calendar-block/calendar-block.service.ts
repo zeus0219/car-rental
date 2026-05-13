@@ -4,7 +4,12 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PrismaClientKnownRequestError } from '../../prisma/prisma-errors';
 import { halfOpenRangesOverlap } from '../intervals';
 import { JwtUser } from '../../auth/types';
-import { assertAgentVehicleHomeBranch, assertSameCompany, isAdmin, isAgentStationScoped } from '../../auth/company-access';
+import {
+  assertAgentVehicleHomeBranch,
+  assertSameCompany,
+  isAdminCrossCompany,
+  isAgentStationScoped,
+} from '../../auth/company-access';
 
 @Injectable()
 export class CalendarBlockService {
@@ -25,7 +30,7 @@ export class CalendarBlockService {
     }
 
     let filterCompanyId: string | undefined;
-    if (isAdmin(user)) {
+    if (isAdminCrossCompany(user)) {
       const q = companyId?.trim();
       filterCompanyId = q || undefined;
       if (!filterCompanyId) {

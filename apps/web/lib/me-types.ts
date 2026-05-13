@@ -12,4 +12,6 @@ export type Me = {
   mfaCanEnable?: boolean;
   /** A3: one-time backup codes remaining (0 if MFA off) */
   mfaBackupCodesRemaining?: number;
+  /** When false, `ENFORCE_STAFF_SINGLE_COMPANY` treats this ADMIN like a single-tenant user (desk omits multi-company scope). */
+  adminCrossCompanyAccess?: boolean;
 };

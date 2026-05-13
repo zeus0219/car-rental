@@ -19,6 +19,7 @@ export default async function Home() {
       </p>
       <div className="page-home-actions">
         <Link href="/quote">{t('home.priceLink')}</Link>
+        <Link href="/my">{t('nav.my')}</Link>
         <Link href="/auth">{t('nav.staff')}</Link>
       </div>
       <p>

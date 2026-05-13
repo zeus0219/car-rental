@@ -30,7 +30,7 @@ import { JwtUser } from '../auth/types';
 import {
   assertAgentReservationInScope,
   assertSameCompany,
-  isAdmin,
+  isAdminCrossCompany,
   isAgentStationScoped,
 } from '../auth/company-access';
 import { StripeService } from './stripe.service';
@@ -72,7 +72,7 @@ export class PaymentsService {
     query: ReconciliationQuery,
     user: JwtUser,
   ): Promise<{ format: 'json'; body: ReconciliationResponse } | { format: 'csv'; csv: string; filename: string }> {
-    if (!isAdmin(user) && query.companyId !== user.companyId) {
+    if (!isAdminCrossCompany(user) && query.companyId !== user.companyId) {
       throw new ForbiddenException('Not allowed to access this company');
     }
     const fromD = new Date(query.from + 'T00:00:00.000Z');

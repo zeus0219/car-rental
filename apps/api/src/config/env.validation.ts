@@ -85,6 +85,12 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
        * privileged users have enrolled MFA, then set true. See PRODUCTION.md.
        */
       AUTH_MFA_REQUIRED: boolish.optional(),
+      /**
+       * When `1`/`true`/`yes`, **`ADMIN`** staff are **company-bound** like other roles: no cross-tenant
+       * `assertSameCompany` bypass, `GET /companies` returns only their `companyId`, and list filters cannot
+       * span dealers. Recommended for per-dealer production. See **docs/STRUCTURE.md** §7.
+       */
+      ENFORCE_STAFF_SINGLE_COMPANY: boolish.optional(),
       /** D4: same semantics as worker — used when desk calls “Transmit now”. */
       /** Optional full URL for `POST /v1/integrations/sdi/callback` — included in HTTP handoff JSON for async SDI middleware (E4). */
       SDI_CALLBACK_URL: z.preprocess(

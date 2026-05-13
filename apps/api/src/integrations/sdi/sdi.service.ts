@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { SdiEnqueueBody, sdiCallbackBodySchema } from '@car-rental/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtUser } from '../../auth/types';
-import { assertSameCompany, effectiveListCompanyFilter, isAdmin } from '../../auth/company-access';
+import { assertSameCompany, effectiveListCompanyFilter, isAdminCrossCompany } from '../../auth/company-access';
 import { AuditService } from '../../audit/audit.service';
 
 const HTTP_TIMEOUT_MS = 15_000;
@@ -436,7 +436,7 @@ export class SdiService {
       }
       assertSameCompany(user, inv.companyId, `Invoice not found: ${q.invoiceId}`);
     }
-    if (isAdmin(user) && !q.companyId && !q.invoiceId) {
+    if (isAdminCrossCompany(user) && !q.companyId && !q.invoiceId) {
       throw new BadRequestException('Provide companyId and/or invoiceId for SDI submission list');
     }
     const companyF = effectiveListCompanyFilter(user, q.companyId);

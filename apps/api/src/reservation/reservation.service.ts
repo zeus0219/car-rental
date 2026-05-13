@@ -20,7 +20,7 @@ import {
   assertAgentReservationInScope,
   assertCreateBodyCompanyId,
   assertSameCompany,
-  isAdmin,
+  isAdminCrossCompany,
 } from '../auth/company-access';
 import { AvailabilityService } from '../fleet/availability/availability.service';
 import { MailService } from '../mail/mail.service';
@@ -132,7 +132,7 @@ export class ReservationService {
     user: JwtUser,
   ) {
     let companyId = q.companyId;
-    if (!isAdmin(user)) {
+    if (!isAdminCrossCompany(user)) {
       if (companyId && companyId !== user.companyId) {
         throw new ForbiddenException('Not allowed to access this company');
       }
@@ -154,7 +154,7 @@ export class ReservationService {
       if (companyId && cust.companyId !== companyId) {
         throw new BadRequestException('customerId does not belong to the requested company');
       }
-      if (!companyId && isAdmin(user)) {
+      if (!companyId && isAdminCrossCompany(user)) {
         companyId = cust.companyId;
       }
     }
@@ -202,7 +202,7 @@ export class ReservationService {
   }
 
   async getSummary(companyId: string, user: JwtUser): Promise<ReservationCompanySummary> {
-    if (!isAdmin(user)) {
+    if (!isAdminCrossCompany(user)) {
       if (companyId !== user.companyId) {
         throw new ForbiddenException('Not allowed to access this company');
       }
