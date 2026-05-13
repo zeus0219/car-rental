@@ -27,6 +27,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/* \
   && groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs appuser
 COPY --from=build /app /app
+RUN mkdir -p /app/data/uploads && chown -R appuser:nodejs /app/data
 USER appuser
 EXPOSE 3000
 ENV NODE_ENV=production
