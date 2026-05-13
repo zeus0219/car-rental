@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { API_VERSION } from '@car-rental/shared';
+import { PublicHomeActions } from '../components/PublicHomeActions';
 import { PUBLIC_LOCALE_COOKIE, parsePublicLocale } from '../lib/public-locale';
 import { publicT } from '../lib/public-messages';
 
@@ -17,11 +18,7 @@ export default async function Home() {
       <p className="page-home-lead">
         <Link href="/quote">{t('home.priceLink')}</Link> — {t('home.priceLine')}
       </p>
-      <div className="page-home-actions">
-        <Link href="/quote">{t('home.priceLink')}</Link>
-        <Link href="/my">{t('nav.my')}</Link>
-        <Link href="/auth">{t('nav.staff')}</Link>
-      </div>
+      <PublicHomeActions />
       <p>
         <strong>{t('home.staffStrong')}</strong>{' '}
         <Link href="/auth">{t('home.signIn')}</Link> {t('home.staffOrOpen')}{' '}

@@ -4,40 +4,41 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMemo } from 'react';
 import { clearAccessToken } from '../lib/auth-storage';
+import { deskNavShowsAudit, deskNavShowsFleetAndCalendar, deskNavShowsTeam } from '../lib/desk-nav-access';
 import type { PublicMessageKey } from '../lib/public-messages';
 import { useMe } from '../lib/use-me';
 import { usePublicLocaleContext } from './PublicLocaleProvider';
+import type { Me } from '../lib/me-types';
 
-const baseLinks: { href: string; key: PublicMessageKey }[] = [
+type NavDef = { href: string; key: PublicMessageKey; when?: (m: Me) => boolean };
+
+const baseLinks: NavDef[] = [
   { href: '/desk', key: 'desk.nav.dashboard' },
   { href: '/desk/account', key: 'desk.nav.account' },
   { href: '/desk/organization', key: 'desk.nav.organization' },
-  { href: '/desk/fleet', key: 'desk.nav.fleet' },
-  { href: '/desk/calendar', key: 'desk.nav.calendar' },
+  { href: '/desk/fleet', key: 'desk.nav.fleet', when: deskNavShowsFleetAndCalendar },
+  { href: '/desk/calendar', key: 'desk.nav.calendar', when: deskNavShowsFleetAndCalendar },
   { href: '/desk/customers', key: 'desk.nav.customers' },
   { href: '/desk/reservations', key: 'desk.nav.reservations' },
   { href: '/desk/reconciliation', key: 'desk.nav.reconciliation' },
   { href: '/desk/reports', key: 'desk.nav.reports' },
   { href: '/desk/invoices', key: 'desk.nav.invoices' },
-  { href: '/desk/team', key: 'desk.nav.team' },
+  { href: '/desk/team', key: 'desk.nav.team', when: deskNavShowsTeam },
+  { href: '/desk/audit', key: 'desk.nav.audit', when: deskNavShowsAudit },
 ];
-
-function canViewAuditNav(role: string | undefined): boolean {
-  return role === 'ADMIN' || role === 'BRANCH_MANAGER' || role === 'READONLY_ACCOUNTING';
-}
 
 export function DeskNav() {
   const { t } = usePublicLocaleContext();
   const pathname = usePathname();
   const router = useRouter();
-  const { me } = useMe();
+  const { me, loading } = useMe();
 
   const links = useMemo(() => {
-    if (me && canViewAuditNav(me.role)) {
-      return [...baseLinks, { href: '/desk/audit', key: 'desk.nav.audit' }];
+    if (loading || !me) {
+      return baseLinks;
     }
-    return baseLinks;
-  }, [me]);
+    return baseLinks.filter((x) => (x.when ? x.when(me) : true));
+  }, [me, loading]);
 
   return (
     <nav className="desk-nav" aria-label={t('desk.nav.aria')}>

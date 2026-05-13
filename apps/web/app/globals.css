@@ -130,6 +130,23 @@ code {
   font-size: 0.9rem;
 }
 
+.site-header-signout {
+  font: inherit;
+  font-size: inherit;
+  font-weight: 500;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.site-header-signout:hover {
+  color: var(--color-accent);
+}
+
 .site-header-locale {
   display: flex;
   gap: 0.35rem;
@@ -200,7 +217,7 @@ code {
   margin-bottom: 2rem;
 }
 
-.page-home-actions a {
+.page-home-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -214,32 +231,48 @@ code {
     box-shadow 0.15s ease;
 }
 
-.page-home-actions a:hover {
+.page-home-action:hover {
   text-decoration: none;
   transform: translateY(-1px);
 }
 
-.page-home-actions a:first-of-type {
+.page-home-action--primary {
   background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   color: #fff;
   box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);
 }
 
-.page-home-actions a:first-of-type:hover {
+.page-home-action--primary:hover {
   color: #fff;
   box-shadow: 0 6px 20px rgba(79, 70, 229, 0.45);
 }
 
-.page-home-actions a:last-of-type {
+.page-home-action--outline {
   background: var(--color-surface);
   color: var(--color-text);
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-sm);
 }
 
-.page-home-actions a:last-of-type:hover {
+.page-home-action--outline:hover {
   border-color: var(--color-border-strong);
   color: var(--color-accent);
+}
+
+.page-home-action--ghost {
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: 1px dashed var(--color-border);
+  box-shadow: none;
+}
+
+.page-home-action--ghost:hover {
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
 }
 
 .page-home-meta {
