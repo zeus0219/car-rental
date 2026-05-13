@@ -72,7 +72,7 @@ sleep 15  # Wait for databases to fully initialize
 echo "🚀 Starting application containers..."
 docker run -d --name car-rental-api \
   -p 3000:3000 \
-  -e DATABASE_URL="postgresql://carrental:carrental@postgres:5432/carrental?schema=public" \
+  -e DATABASE_URL="postgresql://carrental:carrental@localhost:5432/carrental?schema=public" \
   -e JWT_SECRET="$JWT_SECRET" \
   -e CORS_ORIGINS="http://$SERVER_IP" \
   -e TRUST_PROXY="true" \
@@ -87,7 +87,7 @@ docker run -d --name car-rental-web \
   car-rental-web:latest
 
 docker run -d --name car-rental-worker \
-  -e DATABASE_URL="postgresql://carrental:carrental@postgres:5432/carrental?schema=public" \
+  -e DATABASE_URL="postgresql://carrental:carrental@localhost:5432/carrental?schema=public" \
   --network host \
   car-rental-worker
 
