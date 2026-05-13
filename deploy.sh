@@ -113,7 +113,7 @@ echo "🌐 Configuring Nginx..."
 sudo tee /etc/nginx/sites-available/car-rental > /dev/null << 'EOF'
 server {
     listen 80;
-    server_name _;  # Listen on any server name
+    server_name _;
 
     # API proxy
     location /api/ {
@@ -122,11 +122,29 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # WebSocket support (if needed later)
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+    }
+
+    # Next.js static assets — must be before general location block
+    location /_next/static/ {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # Cache static assets aggressively
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+    # Health check endpoint
+    location /health {
+        proxy_pass http://127.0.0.1:3000/v1/health;
+        access_log off;
     }
 
     # Web app proxy (catch-all)
@@ -137,17 +155,8 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         
-        # Next.js static assets caching
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-        }
-    }
-
-    # Health check endpoint
-    location /health {
-        proxy_pass http://127.0.0.1:3000/v1/health;
-        access_log off;
+        # Disable caching for HTML/pages
+        add_header Cache-Control "public, max-age=0, must-revalidate";
     }
 }
 EOF
