@@ -16,6 +16,7 @@ RUN npm ci
 COPY packages/shared packages/shared
 COPY apps/api apps/api
 ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build?schema=public"
+ENV TRUST_PROXY="true"
 RUN npm run build -w @car-rental/shared
 RUN npm run prisma:generate -w @car-rental/api
 RUN npm run build:compile -w @car-rental/api
