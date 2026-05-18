@@ -320,6 +320,8 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
   const [refundOkNotice, setRefundOkNotice] = useState<string | null>(null);
   const [summaryEmailBusy, setSummaryEmailBusy] = useState(false);
   const [summaryEmailNotice, setSummaryEmailNotice] = useState<string | null>(null);
+  const [agreementEmailBusy, setAgreementEmailBusy] = useState(false);
+  const [agreementEmailNotice, setAgreementEmailNotice] = useState<string | null>(null);
   const [linkedCustomerId, setLinkedCustomerId] = useState<string | null>(null);
   const [initialLinkedCustomerId, setInitialLinkedCustomerId] = useState<string | null>(null);
   const [emailDupHint, setEmailDupHint] = useState<{
@@ -495,9 +497,54 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
     }
   }
 
+  async function onDownloadAgreementPdf() {
+    if (!agreementId) {
+      return;
+    }
+    setSubmitErr(null);
+    try {
+      const r = await apiFetch(`/agreements/${agreementId}/pdf`);
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        const msg =
+          typeof err === 'object' && err && 'message' in err
+            ? String((err as { message: unknown }).message)
+            : r.statusText;
+        throw new Error(msg || t('desk.err.generic'));
+      }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `rental-agreement-${editingId?.slice(0, 8) ?? agreementId.slice(0, 8)}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setSubmitErr(e instanceof Error ? e.message : t('desk.err.generic'));
+    }
+  }
+
+  async function onSendAgreementPdfEmail() {
+    if (!agreementId || !canWrite) {
+      return;
+    }
+    setAgreementEmailNotice(null);
+    setSubmitErr(null);
+    setAgreementEmailBusy(true);
+    try {
+      await apiJson<{ ok: true }>(`/agreements/${agreementId}/send-email`, { method: 'POST' });
+      setAgreementEmailNotice(t('desk.res.form.alert.agreementPdfEmailSent'));
+    } catch (e) {
+      setSubmitErr(e instanceof Error ? e.message : t('desk.err.generic'));
+    } finally {
+      setAgreementEmailBusy(false);
+    }
+  }
+
   useEffect(() => {
     setRefundOkNotice(null);
     setSummaryEmailNotice(null);
+    setAgreementEmailNotice(null);
   }, [editingId]);
 
   useEffect(() => {
@@ -2398,6 +2445,9 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
                 {t('desk.res.form.agreementLinkCustomerForDocs')}
               </p>
             )}
+            <p className="desk-muted" style={{ margin: '0 0 0.5rem', fontSize: '0.8rem', lineHeight: 1.45 }}>
+              {t('desk.res.form.emailB4Blurb')}
+            </p>
             <label style={{ display: 'block', marginBottom: '0.35rem' }}>
               <span className="desk-muted" style={{ fontSize: '0.8rem' }}>
                 {t('desk.res.form.agreementTpl')}
@@ -2486,6 +2536,33 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
                       : t('desk.res.form.sendBookingSummaryEmail')}
                   </button>
                 )}
+                {agreementId && (
+                  <button type="button" onClick={() => void onDownloadAgreementPdf()}>
+                    {t('desk.res.form.downloadAgreementPdf')}
+                  </button>
+                )}
+                {agreementId && agreementStatus === 'SIGNED' && canWrite && (
+                  <button
+                    type="button"
+                    disabled={
+                      agreementEmailBusy ||
+                      !values.customerEmail.trim().includes('@') ||
+                      !linkedCustomerId
+                    }
+                    title={
+                      !linkedCustomerId
+                        ? t('desk.res.form.sendAgreementPdfEmailNeedCustomer')
+                        : !values.customerEmail.trim().includes('@')
+                          ? t('desk.res.form.sendBookingSummaryEmailNeedEmail')
+                          : t('desk.res.form.sendAgreementPdfEmailHint')
+                    }
+                    onClick={() => void onSendAgreementPdfEmail()}
+                  >
+                    {agreementEmailBusy
+                      ? t('desk.res.form.sendAgreementPdfEmailSending')
+                      : t('desk.res.form.sendAgreementPdfEmail')}
+                  </button>
+                )}
                 <button type="button" onClick={openAgreementPrintWindow}>
                   {t('desk.res.form.printAgreement')}
                 </button>
@@ -2496,6 +2573,11 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
             {summaryEmailNotice && (
               <p className="desk-ok" role="status" style={{ margin: '0.35rem 0 0' }}>
                 {summaryEmailNotice}
+              </p>
+            )}
+            {agreementEmailNotice && (
+              <p className="desk-ok" role="status" style={{ margin: '0.35rem 0 0' }}>
+                {agreementEmailNotice}
               </p>
             )}
             {agreementId && (

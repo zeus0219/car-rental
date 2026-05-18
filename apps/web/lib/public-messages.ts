@@ -676,6 +676,16 @@ export const publicMessages = {
     'desk.res.form.sendBookingSummaryEmailClosedBooking':
       'Not available once the booking is completed, cancelled, or marked no-show.',
     'desk.res.form.alert.bookingSummaryEmailSent': 'Summary email sent to the guest address on file.',
+    'desk.res.form.downloadAgreementPdf': 'Download agreement PDF',
+    'desk.res.form.sendAgreementPdfEmail': 'Email signed agreement (PDF)',
+    'desk.res.form.sendAgreementPdfEmailSending': 'Sending…',
+    'desk.res.form.sendAgreementPdfEmailHint':
+      'Emails a server-generated PDF of the signed agreement. If your company privacy register (B4) is configured, the linked customer must have an accepted notice version.',
+    'desk.res.form.sendAgreementPdfEmailNeedCustomer':
+      'Link a customer with B4 privacy notice before emailing the contract.',
+    'desk.res.form.alert.agreementPdfEmailSent': 'Signed agreement PDF emailed to the guest address on file.',
+    'desk.res.form.emailB4Blurb':
+      'When your company maintains a privacy-notice register (Organization), guest emails require a linked customer with a recorded notice version (B4).',
     'desk.res.form.printAgreementTitle': 'Rental agreement',
     'desk.res.form.printReservationRef': 'Reservation',
     'desk.res.form.printCustomerHeading': 'Customer (on this rental)',
@@ -996,6 +1006,8 @@ export const publicMessages = {
     'desk.audit.action.invoice.void': 'Invoice voided',
     'desk.audit.action.invoice.delete_draft': 'Invoice draft deleted',
     'desk.audit.action.public.booking_magic_link_requested': 'Booking view magic link requested',
+    'desk.audit.action.reservation.email_summary': 'Booking summary emailed to guest',
+    'desk.audit.action.rental_agreement.email_pdf': 'Signed rental agreement PDF emailed to guest',
     'desk.audit.action.rental_agreement.cargos_auto_enqueue_failed':
       'Rental agreement CaRGOS auto-enqueue failed',
     'desk.audit.action.reservation.create': 'Reservation created',
@@ -2923,6 +2935,16 @@ export const publicMessages = {
     'desk.res.form.sendBookingSummaryEmailClosedBooking':
       'Non disponibile se la prenotazione è completata, annullata o contrassegnata come no-show.',
     'desk.res.form.alert.bookingSummaryEmailSent': 'Email di riepilogo inviata all’indirizzo ospite registrato.',
+    'desk.res.form.downloadAgreementPdf': 'Scarica contratto PDF',
+    'desk.res.form.sendAgreementPdfEmail': 'Invia contratto firmato (PDF)',
+    'desk.res.form.sendAgreementPdfEmailSending': 'Invio…',
+    'desk.res.form.sendAgreementPdfEmailHint':
+      'Invia un PDF generato dal server del contratto firmato. Se il registro privacy (B4) è configurato, il cliente collegato deve avere una versione informativa accettata.',
+    'desk.res.form.sendAgreementPdfEmailNeedCustomer':
+      'Collegare un cliente con informativa privacy B4 prima di inviare il contratto per email.',
+    'desk.res.form.alert.agreementPdfEmailSent': 'PDF del contratto firmato inviato all’email ospite registrata.',
+    'desk.res.form.emailB4Blurb':
+      'Se la società mantiene un registro versioni privacy (Organizzazione), le email agli ospiti richiedono un cliente collegato con versione informativa registrata (B4).',
     'desk.res.form.printAgreementTitle': 'Contratto di noleggio',
     'desk.res.form.printReservationRef': 'Prenotazione',
     'desk.res.form.printCustomerHeading': 'Cliente (su questo noleggio)',
@@ -3249,6 +3271,8 @@ export const publicMessages = {
     'desk.audit.action.invoice.delete_draft': 'Bozza fattura eliminata',
     'desk.audit.action.public.booking_magic_link_requested':
       'Richiesta link magico per la vista prenotazione',
+    'desk.audit.action.reservation.email_summary': 'Riepilogo prenotazione inviato al cliente (email)',
+    'desk.audit.action.rental_agreement.email_pdf': 'PDF contratto firmato inviato al cliente (email)',
     'desk.audit.action.rental_agreement.cargos_auto_enqueue_failed':
       'Accodamento CaRGOS da contratto non riuscito',
     'desk.audit.action.reservation.create': 'Prenotazione creata',

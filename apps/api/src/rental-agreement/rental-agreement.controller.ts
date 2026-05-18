@@ -153,6 +153,33 @@ export class RentalAgreementController {
     return this.attachments.remove(id, attachmentId, user);
   }
 
+  @Get(':id/pdf')
+  @ApiOperation({ summary: 'Download rental agreement as PDF (server-generated)' })
+  @Roles('ADMIN', 'BRANCH_MANAGER', 'AGENT', 'READONLY_ACCOUNTING')
+  async downloadPdf(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: JwtUser) {
+    const bytes = await this.agreements.renderPdfBuffer(id, user);
+    return new StreamableFile(Buffer.from(bytes), {
+      type: 'application/pdf',
+      disposition: `attachment; filename="rental-agreement-${id.slice(0, 8)}.pdf"`,
+    });
+  }
+
+  @Post(':id/send-email')
+  @ApiOperation({
+    summary: 'Email customer the signed rental agreement PDF (B4 privacy gate when register is set)',
+  })
+  @Roles('ADMIN', 'BRANCH_MANAGER', 'AGENT')
+  sendAgreementEmail(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: JwtUser,
+    @Req() req: Request,
+  ) {
+    return this.agreements.sendAgreementPdfEmail(id, user, {
+      ip: esignClientIp(req) ?? undefined,
+      userAgent: esignUserAgent(req) ?? undefined,
+    });
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get rental agreement by id' })
   @Roles('ADMIN', 'BRANCH_MANAGER', 'AGENT', 'READONLY_ACCOUNTING')

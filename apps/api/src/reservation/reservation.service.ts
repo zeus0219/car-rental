@@ -50,6 +50,7 @@ import {
   assertReturnCompletionGates,
   computeReturnCompletionGate,
 } from './reservation-return-completion.util';
+import { assertDeskEmailB4ForReservation } from '../organization/customer/customer-b4-email.util';
 
 const ACTIVE_STATUS_FILTER = { notIn: [...reservationNonBlockingStatusValues] };
 
@@ -300,6 +301,10 @@ export class ReservationService {
     if (!this.mail.isEnabled()) {
       throw new ServiceUnavailableException('Outbound email is not configured (SMTP).');
     }
+    const { b4Consent } = await assertDeskEmailB4ForReservation(this.prisma, {
+      companyId: r.companyId,
+      customerId: r.customerId,
+    });
     const plate = r.vehicle?.licensePlate?.trim() ?? '';
     const model = r.vehicle?.modelLabel?.trim() ?? '';
     const cls = r.vehicle?.vehicleClass?.name?.trim() ?? '';
@@ -332,7 +337,7 @@ export class ReservationService {
       action: 'reservation.email_summary',
       entity: 'Reservation',
       entityId: r.id,
-      metadata: { toSha256Prefix: toHash },
+      metadata: { toSha256Prefix: toHash, b4Consent },
       ip: ctx.ip ?? null,
       userAgent: ctx.userAgent ?? null,
     });

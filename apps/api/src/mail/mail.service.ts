@@ -469,6 +469,76 @@ ${viewUrl ? `<p><a href="${escapeHtml(viewUrl)}">View your booking</a> <span sty
     }
   }
 
+  /** Desk: signed rental agreement PDF attachment (not a substitute for qualified e-sign). */
+  async sendRentalAgreementPdfEmail(args: {
+    to: string;
+    customerName: string;
+    reservationId: string;
+    companyId: string;
+    agreementTemplateVersion: string | null;
+    pdfBytes: Uint8Array;
+  }): Promise<void> {
+    if (!this.transporter) {
+      return;
+    }
+    if (!args.to?.includes('@')) {
+      return;
+    }
+    const from = this.config.get<string>('SMTP_FROM')?.trim();
+    if (!from) {
+      return;
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: args.companyId },
+      select: { name: true },
+    });
+    const orgName = company?.name ?? 'Car rental';
+    const tpl = args.agreementTemplateVersion?.trim();
+    const tplLine = tpl ? `\nTemplate: ${tpl}` : '';
+    const subject = `${orgName} — your signed rental agreement`;
+    const text = `Hello ${args.customerName},
+
+Please find your signed rental agreement attached (PDF).
+
+Reservation: ${args.reservationId}
+Company: ${orgName}${tplLine}
+
+If you did not expect this email, contact ${orgName}.
+
+This is an automated message.`;
+    const html = `<p>Hello ${escapeHtml(args.customerName)},</p>
+<p>Please find your <strong>signed rental agreement</strong> attached (PDF).</p>
+<ul>
+<li><strong>Reservation:</strong> <code>${escapeHtml(args.reservationId)}</code></li>
+<li><strong>Company:</strong> ${escapeHtml(orgName)}</li>
+${tpl ? `<li><strong>Template:</strong> ${escapeHtml(tpl)}</li>` : ''}
+</ul>
+<p style="color:#666;font-size:0.9em">This is an automated message.</p>`;
+    const filename = `rental-agreement-${args.reservationId.slice(0, 8)}.pdf`;
+    try {
+      await this.transporter.sendMail({
+        from,
+        to: args.to,
+        subject,
+        text,
+        html,
+        attachments: [
+          {
+            filename,
+            content: Buffer.from(args.pdfBytes),
+            contentType: 'application/pdf',
+          },
+        ],
+      });
+      this.logger.log(`Mail sent: rental agreement PDF → ${args.to} (${args.reservationId})`);
+    } catch (e) {
+      this.logger.warn(
+        `Mail send failed (agreement PDF ${args.reservationId}): ${e instanceof Error ? e.message : String(e)}`,
+      );
+      throw e;
+    }
+  }
+
   /**
    * After staff creates a Stripe Checkout session — email the customer the pay link (C2).
    * Skipped when `EMAIL_STRIPE_CHECKOUT_LINKS` is false, or SMTP off, or invalid `to`.
