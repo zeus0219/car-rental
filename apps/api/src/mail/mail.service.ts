@@ -74,6 +74,11 @@ export class MailService implements OnModuleInit {
     return this.transporter !== null;
   }
 
+  private mailDeskCustomerWelcomeEnabled(): boolean {
+    const v = this.config.get<string>('MAIL_DESK_CUSTOMER_WELCOME')?.trim().toLowerCase();
+    return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+  }
+
   private formatMoney(cents: number | null, currency: string): string {
     if (cents == null) {
       return '—';
@@ -162,6 +167,56 @@ ${base ? `<p><a href="${escapeHtml(base)}/quote">Return to the quote page</a></p
     } catch (e) {
       this.logger.warn(
         `Mail send failed (public quote ${args.reservationId}): ${e instanceof Error ? e.message : String(e)}`,
+      );
+      throw e;
+    }
+  }
+
+  /**
+   * When **`MAIL_DESK_CUSTOMER_WELCOME`** is truthy and SMTP is configured, notify the customer after desk creates their CRM row (GDPR: use only with consent / legitimate interest policy).
+   */
+  async sendDeskCustomerWelcome(args: {
+    to: string;
+    customerName: string;
+    companyId: string;
+    customerId: string;
+  }): Promise<void> {
+    if (!this.transporter || !this.mailDeskCustomerWelcomeEnabled()) {
+      return;
+    }
+    const from = this.config.get<string>('SMTP_FROM')?.trim();
+    if (!from) {
+      return;
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: args.companyId },
+      select: { name: true },
+    });
+    const orgName = company?.name ?? 'Car rental';
+    const subject = `${orgName} — we saved your contact details`;
+    const text = `Hello ${args.customerName},
+
+${orgName} has added your details to our rental system after contact with our desk.
+
+If you did not expect this message, please reply or contact the branch.
+
+This is an automated message.`;
+    const html = `<p>Hello ${escapeHtml(args.customerName)},</p>
+<p>${escapeHtml(orgName)} has added your details to our rental system after contact with our desk.</p>
+<p style="color:#666;font-size:0.9em">If you did not expect this message, please reply or contact the branch.</p>
+<p style="color:#666;font-size:0.9em">This is an automated message.</p>`;
+    try {
+      await this.transporter.sendMail({
+        from,
+        to: args.to,
+        subject,
+        text,
+        html,
+      });
+      this.logger.log(`Mail sent: desk customer welcome → ${args.to} (${args.customerId})`);
+    } catch (e) {
+      this.logger.warn(
+        `Mail send failed (desk customer welcome ${args.customerId}): ${e instanceof Error ? e.message : String(e)}`,
       );
       throw e;
     }
@@ -322,6 +377,93 @@ ${viewUrl ? `<p><a href="${escapeHtml(viewUrl)}">View your booking</a> <span sty
     } catch (e) {
       this.logger.warn(
         `Mail send failed (confirmed ${args.reservationId}): ${e instanceof Error ? e.message : String(e)}`,
+      );
+      throw e;
+    }
+  }
+
+  /** Desk-triggered: quote / booking facts for the guest (not a contract). */
+  async sendReservationBookingSummaryEmail(args: {
+    to: string;
+    customerName: string;
+    reservationId: string;
+    companyId: string;
+    status: string;
+    totalCents: number | null;
+    currency: string;
+    pickupAt: Date;
+    returnAt: Date;
+    publicViewToken?: string | null;
+    vehicleSummary?: string | null;
+    pickupStationLine?: string | null;
+    returnStationLine?: string | null;
+  }): Promise<void> {
+    if (!this.transporter) {
+      return;
+    }
+    if (!args.to?.includes('@')) {
+      return;
+    }
+    const from = this.config.get<string>('SMTP_FROM')?.trim();
+    if (!from) {
+      return;
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: args.companyId },
+      select: { name: true },
+    });
+    const orgName = company?.name ?? 'Car rental';
+    const totalLine = this.formatMoney(args.totalCents, args.currency);
+    const viewUrl = this.bookingViewUrl(args.publicViewToken);
+    const viewBlock = viewUrl ? `\nView your booking: ${viewUrl}\n` : '';
+    const pickup = args.pickupAt.toISOString();
+    const ret = args.returnAt.toISOString();
+    const vehicleBlock = args.vehicleSummary ? `\nVehicle: ${args.vehicleSummary}\n` : '';
+    const pickupSt = args.pickupStationLine ? `\nPickup location: ${args.pickupStationLine}` : '';
+    const returnSt = args.returnStationLine ? `\nReturn location: ${args.returnStationLine}` : '';
+    const subject = `${orgName} — your rental booking summary`;
+    const text = `Hello ${args.customerName},
+
+Here is a summary of your rental booking (for your records). This message is not a rental contract.
+
+Reference: ${args.reservationId}
+Company: ${orgName}
+Status: ${args.status}
+Indicative total: ${totalLine}
+Pickup: ${pickup}${pickupSt}
+Return: ${ret}${returnSt}${vehicleBlock}${viewBlock}If you did not request this, contact ${orgName}.
+
+This is an automated message.`;
+    const vehHtml = args.vehicleSummary
+      ? `<li><strong>Vehicle:</strong> ${escapeHtml(args.vehicleSummary)}</li>`
+      : '';
+    const pickupStHtml = args.pickupStationLine
+      ? `<li><strong>Pickup location:</strong> ${escapeHtml(args.pickupStationLine)}</li>`
+      : '';
+    const returnStHtml = args.returnStationLine
+      ? `<li><strong>Return location:</strong> ${escapeHtml(args.returnStationLine)}</li>`
+      : '';
+    const html = `<p>Hello ${escapeHtml(args.customerName)},</p>
+<p>Here is a <strong>summary</strong> of your rental booking (for your records). This email is <strong>not</strong> a rental contract.</p>
+<ul>
+<li><strong>Reference:</strong> <code>${escapeHtml(args.reservationId)}</code></li>
+<li><strong>Company:</strong> ${escapeHtml(orgName)}</li>
+<li><strong>Status:</strong> <code>${escapeHtml(args.status)}</code></li>
+<li><strong>Indicative total:</strong> ${escapeHtml(totalLine)}</li>
+<li><strong>Pickup:</strong> ${escapeHtml(pickup)}</li>
+${pickupStHtml}
+<li><strong>Return:</strong> ${escapeHtml(ret)}</li>
+${returnStHtml}
+${vehHtml}
+</ul>
+${viewUrl ? `<p><a href="${escapeHtml(viewUrl)}">View your booking</a> <span style="color:#666">(no password)</span></p>` : ''}
+<p style="color:#666;font-size:0.9em">This is an automated message.</p>`;
+    try {
+      await this.transporter.sendMail({ from, to: args.to, subject, text, html });
+      this.logger.log(`Mail sent: reservation booking summary → ${args.to} (${args.reservationId})`);
+    } catch (e) {
+      this.logger.warn(
+        `Mail send failed (booking summary ${args.reservationId}): ${e instanceof Error ? e.message : String(e)}`,
       );
       throw e;
     }

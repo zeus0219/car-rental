@@ -125,6 +125,23 @@ export class ReservationController {
     return this.reservations.getSummary(companyId, user);
   }
 
+  @Post(':id/send-booking-summary-email')
+  @ApiOperation({
+    summary: 'Email customer a booking summary (quote/total/pickup/return; optional public view link)',
+  })
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'BRANCH_MANAGER', 'AGENT')
+  sendBookingSummaryEmail(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: JwtUser,
+    @Req() req: Request,
+  ) {
+    return this.reservations.sendBookingSummaryEmail(id, user, {
+      ip: req.ip,
+      userAgent: req.get('user-agent') ?? undefined,
+    });
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get reservation with handover gate, ops, damage, etc.' })
   getOne(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: JwtUser) {

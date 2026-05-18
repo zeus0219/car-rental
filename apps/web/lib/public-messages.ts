@@ -469,6 +469,14 @@ export const publicMessages = {
     'desk.calendar.legend.res': 'Reservations',
     'desk.calendar.legend.block': 'Blocks',
     'desk.calendar.openRes': 'Open reservation',
+    'desk.calendar.cargos.legendPending': 'CaRGOS: queued / sending',
+    'desk.calendar.cargos.legendIssue': 'CaRGOS: action needed (failed or not sent)',
+    'desk.calendar.cargos.banner':
+      '{n} reservation(s) in this window need attention for CaRGOS (hover bars for details). Open a reservation to enqueue or fix.',
+    'desk.calendar.cargos.titlePending': 'CaRGOS: transmission queued or in progress',
+    'desk.calendar.cargos.titleIssue': 'CaRGOS: transmission failed or missing — open reservation',
+    'desk.calendar.cargos.titleCutoff':
+      'CaRGOS: past company enqueue cutoff before pickup — open reservation (override may be required)',
     'desk.calendar.blockType.MAINTENANCE': 'Maintenance',
     'desk.calendar.blockType.BUFFER': 'Buffer',
     'desk.calendar.blockType.HOLD': 'Hold',
@@ -643,6 +651,14 @@ export const publicMessages = {
     'desk.res.form.agreementTitle': 'Rental agreement (terms)',
     'desk.res.form.agreementBlurb':
       'One agreement per reservation. Edit while DRAFT, then record Sign (desk attestation — not qualified e-sign). Void only voids drafts. Attachments are stored on the API host under data/uploads (see STORAGE_LOCAL_ROOT).',
+    'desk.res.form.agreementLifecycleSigned':
+      'Signed: agreement text is frozen for audit. Substantive changes follow your organisation’s legal process (this app does not version contracts in v1).',
+    'desk.res.form.agreementLifecycleVoid':
+      'Voided: this agreement row is kept for audit only. Replacements or addenda outside the in-app draft lifecycle follow counsel / internal policy.',
+    'desk.res.form.agreementCustomerDocsBlurb':
+      'Licence / ID uploads for this contract are on the linked customer (same person as this rental):',
+    'desk.res.form.agreementLinkCustomerForDocs':
+      'Link a customer in the section above to upload and verify ID documents that go with this rental agreement.',
     'desk.res.form.agreementTpl': 'Agreement template version (optional — e.g. lawyer-approved label)',
     'desk.res.form.agreementTplPh': 'e.g. ITA-RENT-2024-1',
     'desk.res.form.agreementStatus': 'Status:',
@@ -651,8 +667,28 @@ export const publicMessages = {
     'desk.res.form.ip': 'IP',
     'desk.res.form.ua': 'UA',
     'desk.res.form.attachHeading': 'Attachments (PDF, JPEG, PNG, WebP)',
-    'desk.res.form.printAgreement': 'Print agreement text',
+    'desk.res.form.printAgreement': 'Print contract (with customer)',
+    'desk.res.form.sendBookingSummaryEmail': 'Email customer booking summary',
+    'desk.res.form.sendBookingSummaryEmailSending': 'Sending…',
+    'desk.res.form.sendBookingSummaryEmailHint':
+      'Sends a short summary to the guest email on file (not a contract). Requires SMTP on the server.',
+    'desk.res.form.sendBookingSummaryEmailNeedEmail': 'Set a valid guest email on this reservation first.',
+    'desk.res.form.sendBookingSummaryEmailClosedBooking':
+      'Not available once the booking is completed, cancelled, or marked no-show.',
+    'desk.res.form.alert.bookingSummaryEmailSent': 'Summary email sent to the guest address on file.',
     'desk.res.form.printAgreementTitle': 'Rental agreement',
+    'desk.res.form.printReservationRef': 'Reservation',
+    'desk.res.form.printCustomerHeading': 'Customer (on this rental)',
+    'desk.res.form.printAgreementBodyHeading': 'Agreement text',
+    'desk.res.form.printAnnexesHeading': 'Annex files (open each attachment on the desk to print from your PDF/image viewer)',
+    'desk.res.form.printLabelName': 'Name',
+    'desk.res.form.printLabelEmail': 'Email',
+    'desk.res.form.printLabelPhone': 'Phone',
+    'desk.res.form.printLabelCustomerId': 'Linked customer record',
+    'desk.res.form.printLabelFiscal': 'Fiscal code',
+    'desk.res.form.printLabelVat': 'VAT number',
+    'desk.res.form.printLabelSdi': 'SDI recipient code',
+    'desk.res.form.printLabelPec': 'PEC',
     'desk.res.form.attachPrintHint': 'For PDF attachments, download and use your viewer’s print command.',
     'desk.res.form.noFiles': 'No files yet.',
     'desk.res.form.delete': 'Delete',
@@ -1383,7 +1419,7 @@ export const publicMessages = {
     'desk.organization.station.fieldCountry': 'Country (ISO)',
     'desk.organization.station.fieldTimeZone': 'Time zone',
     'desk.organization.station.cargosLead':
-      'CaRGOS / branch code (D5) — on the HTTP adapter this is sent as',
+      'CaRGOS / branch code (D5) — enter the code your Polizia / Questura or CaRGOS middleware vendor gives you for this branch (not auto-filled from province). On the HTTP adapter it is sent as',
     'desk.organization.station.optionalPh': 'optional',
     'desk.organization.station.timeZonePh': 'Europe/Rome',
     'desk.organization.station.saving': 'Saving…',
@@ -2677,6 +2713,14 @@ export const publicMessages = {
     'desk.calendar.legend.res': 'Prenotazioni',
     'desk.calendar.legend.block': 'Blocchi',
     'desk.calendar.openRes': 'Apri prenotazione',
+    'desk.calendar.cargos.legendPending': 'CaRGOS: in coda / invio',
+    'desk.calendar.cargos.legendIssue': 'CaRGOS: intervento (fallito o non inviato)',
+    'desk.calendar.cargos.banner':
+      '{n} prenotazioni in questa finestra richiedono attenzione per CaRGOS (dettagli al passaggio sulle barre). Apri la prenotazione per accodare o correggere.',
+    'desk.calendar.cargos.titlePending': 'CaRGOS: trasmissione in coda o in corso',
+    'desk.calendar.cargos.titleIssue': 'CaRGOS: trasmissione fallita o assente — apri prenotazione',
+    'desk.calendar.cargos.titleCutoff':
+      'CaRGOS: superata la finestra di accodamento prima del ritiro — apri prenotazione (può servire deroga)',
     'desk.calendar.blockType.MAINTENANCE': 'Manutenzione',
     'desk.calendar.blockType.BUFFER': 'Buffer',
     'desk.calendar.blockType.HOLD': 'Blocco',
@@ -2854,6 +2898,14 @@ export const publicMessages = {
     'desk.res.form.agreementTitle': 'Contratto di noleggio (condizioni)',
     'desk.res.form.agreementBlurb':
       'Un contratto per prenotazione. Modifica in BOZZA, poi Firma (attestazione desk — non firma elettronica qualificata). Annulla solo bozze. Allegati sul server in data/uploads (STORAGE_LOCAL_ROOT).',
+    'desk.res.form.agreementLifecycleSigned':
+      'Firmato: il testo del contratto è congelato per audit. Modifiche sostanziali seguono il processo legale interno (in v1 questa app non versiona i contratti).',
+    'desk.res.form.agreementLifecycleVoid':
+      'Annullato: questa riga contratto resta solo per audit. Sostituzioni o allegati fuori dal ciclo bozza in-app seguono consulenza / policy interna.',
+    'desk.res.form.agreementCustomerDocsBlurb':
+      'Patente / documenti d’identità per questo contratto sono sulla scheda cliente collegata (stessa persona del noleggio):',
+    'desk.res.form.agreementLinkCustomerForDocs':
+      'Collega un cliente nella sezione sopra per caricare e verificare i documenti d’identità associati a questo contratto.',
     'desk.res.form.agreementTpl': 'Versione template contratto (opzionale — es. etichetta legale)',
     'desk.res.form.agreementTplPh': 'es. ITA-RENT-2024-1',
     'desk.res.form.agreementStatus': 'Stato:',
@@ -2862,8 +2914,28 @@ export const publicMessages = {
     'desk.res.form.ip': 'IP',
     'desk.res.form.ua': 'UA',
     'desk.res.form.attachHeading': 'Allegati (PDF, JPEG, PNG, WebP)',
-    'desk.res.form.printAgreement': 'Stampa testo contratto',
+    'desk.res.form.printAgreement': 'Stampa contratto (con cliente)',
+    'desk.res.form.sendBookingSummaryEmail': 'Invia riepilogo prenotazione al cliente (email)',
+    'desk.res.form.sendBookingSummaryEmailSending': 'Invio…',
+    'desk.res.form.sendBookingSummaryEmailHint':
+      'Invia un breve riepilogo all’email ospite registrata (non è un contratto). Richiede SMTP sul server.',
+    'desk.res.form.sendBookingSummaryEmailNeedEmail': 'Impostare prima un’email ospite valida su questa prenotazione.',
+    'desk.res.form.sendBookingSummaryEmailClosedBooking':
+      'Non disponibile se la prenotazione è completata, annullata o contrassegnata come no-show.',
+    'desk.res.form.alert.bookingSummaryEmailSent': 'Email di riepilogo inviata all’indirizzo ospite registrato.',
     'desk.res.form.printAgreementTitle': 'Contratto di noleggio',
+    'desk.res.form.printReservationRef': 'Prenotazione',
+    'desk.res.form.printCustomerHeading': 'Cliente (su questo noleggio)',
+    'desk.res.form.printAgreementBodyHeading': 'Testo del contratto',
+    'desk.res.form.printAnnexesHeading': 'Allegati (apri ogni file dal desk e stampa dal visualizzatore PDF/immagine)',
+    'desk.res.form.printLabelName': 'Nome',
+    'desk.res.form.printLabelEmail': 'Email',
+    'desk.res.form.printLabelPhone': 'Telefono',
+    'desk.res.form.printLabelCustomerId': 'Scheda cliente collegata',
+    'desk.res.form.printLabelFiscal': 'Codice fiscale',
+    'desk.res.form.printLabelVat': 'Partita IVA',
+    'desk.res.form.printLabelSdi': 'Codice destinatario SDI',
+    'desk.res.form.printLabelPec': 'PEC',
     'desk.res.form.attachPrintHint': 'Per PDF allegati, scarica e usa Stampa dal visualizzatore.',
     'desk.res.form.noFiles': 'Nessun file.',
     'desk.res.form.delete': 'Elimina',
@@ -3604,7 +3676,7 @@ export const publicMessages = {
     'desk.organization.station.fieldCountry': 'Paese (ISO)',
     'desk.organization.station.fieldTimeZone': 'Fuso orario',
     'desk.organization.station.cargosLead':
-      'Codice CaRGOS / sede (D5) — con adapter HTTP viene inviato come',
+      'Codice CaRGOS / sede (D5) — inserire il codice fornito dalla Polizia / Questura o dal vendor del middleware CaRGOS per questa sede (non derivato automaticamente dalla provincia). Con adapter HTTP viene inviato come',
     'desk.organization.station.optionalPh': 'opzionale',
     'desk.organization.station.timeZonePh': 'Europe/Rome',
     'desk.organization.station.saving': 'Salvataggio…',

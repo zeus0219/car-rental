@@ -53,6 +53,8 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
       ),
       /** C2: rent dunning — requires SMTP + APP_PUBLIC_BASE_URL for links. */
       EMAIL_RENT_PAYMENT_REMINDERS: z.string().optional(),
+      /** When truthy with SMTP, send a short email to the customer after desk **POST /customers** (off by default; GDPR/consent is your policy). */
+      MAIL_DESK_CUSTOMER_WELCOME: z.string().optional(),
       RENT_REMINDER_BATCH_LIMIT: z.coerce.number().int().min(1).max(500).optional(),
       RENT_REMINDER_MIN_RESERVATION_AGE_HOURS: z.coerce.number().int().min(1).max(720).optional(),
       RENT_REMINDER_MIN_LEAD_HOURS_BEFORE_PICKUP: z.coerce.number().int().min(1).max(720).optional(),

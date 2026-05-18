@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   createReservationSchema,
@@ -19,6 +20,14 @@ import type { Me } from '../lib/me-types';
 import type { PublicMessageKey } from '../lib/public-messages';
 import { usePublicLocaleContext } from './PublicLocaleProvider';
 import { ReservationOpsPanel } from './ReservationOpsPanel';
+
+/** Current desk path → `/desk/customers` (same segment depth; supports optional locale prefix). */
+function deskCustomersBasePathFrom(pathname: string | null): string {
+  if (!pathname || pathname.length < 2) {
+    return '/desk/customers';
+  }
+  return pathname.replace(/\/[^/]+$/, '/customers');
+}
 
 type StationRow = { id: string; name: string; code: string };
 type VClass = { id: string; name: string; code: string };
@@ -96,7 +105,16 @@ type ReservationOne = {
       createdAt: string;
     }[];
   } | null;
-  customer?: { id: string; name: string; email: string; phone: string } | null;
+  customer?: {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    fiscalCode: string | null;
+    vatNumber: string | null;
+    sdiRecipientCode: string | null;
+    pec: string | null;
+  } | null;
   cargosHandoverOverrideAt?: string | null;
   cargosHandoverOverrideReason?: string | null;
   cargosHandoverOverrideBy?: {
@@ -300,6 +318,8 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
   const [refundDepositCents, setRefundDepositCents] = useState('');
   const [refundBusy, setRefundBusy] = useState(false);
   const [refundOkNotice, setRefundOkNotice] = useState<string | null>(null);
+  const [summaryEmailBusy, setSummaryEmailBusy] = useState(false);
+  const [summaryEmailNotice, setSummaryEmailNotice] = useState<string | null>(null);
   const [linkedCustomerId, setLinkedCustomerId] = useState<string | null>(null);
   const [initialLinkedCustomerId, setInitialLinkedCustomerId] = useState<string | null>(null);
   const [emailDupHint, setEmailDupHint] = useState<{
@@ -317,6 +337,9 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
   const [custSearch, setCustSearch] = useState('');
   const [custOptions, setCustOptions] = useState<{ id: string; name: string; email: string; phone: string }[]>([]);
   const custSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [agreementPrintCustomer, setAgreementPrintCustomer] = useState<ReservationOne['customer'] | null>(
+    null,
+  );
   const [agreementId, setAgreementId] = useState<string | null>(null);
   const [agreementStatus, setAgreementStatus] = useState<string | null>(null);
   const [agreementBody, setAgreementBody] = useState('');
@@ -354,9 +377,127 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
   const lockPickupStation = me.role === 'AGENT' && me.stationId != null;
   const { t, locale } = usePublicLocaleContext();
   const dateLoc = locale === 'it' ? 'it-IT' : 'en-GB';
+  const pathname = usePathname();
+
+  function appendAgreementPrintTableRow(
+    doc: Document,
+    tbody: HTMLTableSectionElement,
+    label: string,
+    value: string,
+  ) {
+    const tr = doc.createElement('tr');
+    const th = doc.createElement('th');
+    th.textContent = label;
+    const td = doc.createElement('td');
+    const v = value.trim();
+    td.textContent = v.length > 0 ? v : '—';
+    tr.appendChild(th);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+
+  function openAgreementPrintWindow() {
+    if (!editingId) {
+      return;
+    }
+    const w = window.open('', '_blank', 'noopener,noreferrer');
+    if (!w) {
+      return;
+    }
+    const d = w.document;
+    d.title = t('desk.res.form.printAgreementTitle');
+    const style = d.createElement('style');
+    style.textContent =
+      'body{font-family:system-ui,Segoe UI,Roboto,sans-serif;padding:1rem;max-width:50rem;margin:0 auto;color:#111;line-height:1.35}' +
+      'h1{font-size:1.2rem;margin:0 0 0.35rem;font-weight:700}' +
+      'h2{font-size:1.02rem;margin:1rem 0 0.4rem;font-weight:600}' +
+      '.ref{font-size:0.82rem;color:#444;margin:0 0 1rem}' +
+      'table{border-collapse:collapse;width:100%;font-size:0.92rem}' +
+      'td,th{border:1px solid #bbb;padding:0.45rem 0.6rem;vertical-align:top}' +
+      'th{background:#f0f2f5;width:36%;text-align:left;font-weight:600}' +
+      'pre{white-space:pre-wrap;font-size:0.88rem;margin:0.5rem 0 0;border:1px solid #ddd;padding:0.65rem;border-radius:4px;background:#fafafa}' +
+      '.annex{font-size:0.88rem;margin:0.35rem 0 0;padding-left:1.1rem}' +
+      '@media print{body{padding:0.5rem}pre{break-inside:avoid}h2{break-after:avoid}}';
+    d.head.appendChild(style);
+    const body = d.body;
+    const h1 = d.createElement('h1');
+    h1.textContent = t('desk.res.form.printAgreementTitle');
+    body.appendChild(h1);
+    const ref = d.createElement('p');
+    ref.className = 'ref';
+    ref.textContent = `${t('desk.res.form.printReservationRef')}: ${editingId}`;
+    body.appendChild(ref);
+    const h2c = d.createElement('h2');
+    h2c.textContent = t('desk.res.form.printCustomerHeading');
+    body.appendChild(h2c);
+    const tbl = d.createElement('table');
+    const tbody = d.createElement('tbody');
+    appendAgreementPrintTableRow(d, tbody, t('desk.res.form.printLabelName'), values.customerName);
+    appendAgreementPrintTableRow(d, tbody, t('desk.res.form.printLabelEmail'), values.customerEmail);
+    appendAgreementPrintTableRow(d, tbody, t('desk.res.form.printLabelPhone'), values.customerPhone);
+    const pc = agreementPrintCustomer;
+    if (pc) {
+      appendAgreementPrintTableRow(d, tbody, t('desk.res.form.printLabelCustomerId'), pc.id);
+      appendAgreementPrintTableRow(d, tbody, t('desk.res.form.printLabelFiscal'), pc.fiscalCode ?? '');
+      appendAgreementPrintTableRow(d, tbody, t('desk.res.form.printLabelVat'), pc.vatNumber ?? '');
+      appendAgreementPrintTableRow(d, tbody, t('desk.res.form.printLabelSdi'), pc.sdiRecipientCode ?? '');
+      appendAgreementPrintTableRow(d, tbody, t('desk.res.form.printLabelPec'), pc.pec ?? '');
+    }
+    tbl.appendChild(tbody);
+    body.appendChild(tbl);
+    const h2a = d.createElement('h2');
+    h2a.textContent = t('desk.res.form.printAgreementBodyHeading');
+    body.appendChild(h2a);
+    const pre = d.createElement('pre');
+    pre.textContent = agreementBody;
+    body.appendChild(pre);
+    if (agreementAttachments.length > 0) {
+      const h2x = d.createElement('h2');
+      h2x.textContent = t('desk.res.form.printAnnexesHeading');
+      body.appendChild(h2x);
+      const ul = d.createElement('ul');
+      ul.className = 'annex';
+      for (const f of agreementAttachments) {
+        const li = d.createElement('li');
+        li.textContent = f.originalName;
+        ul.appendChild(li);
+      }
+      body.appendChild(ul);
+    }
+    d.close();
+    w.focus();
+    w.print();
+    window.setTimeout(() => {
+      w.close();
+    }, 500);
+  }
+
+  const bookingSummaryEmailBlocked =
+    !statusSnapshot ||
+    ['CANCELLED', 'COMPLETED', 'NO_SHOW'].includes(statusSnapshot);
+
+  async function onSendBookingSummaryEmail() {
+    if (!editingId || !canWrite) {
+      return;
+    }
+    setSummaryEmailNotice(null);
+    setSubmitErr(null);
+    setSummaryEmailBusy(true);
+    try {
+      await apiJson<{ ok: true }>(`/reservations/${editingId}/send-booking-summary-email`, {
+        method: 'POST',
+      });
+      setSummaryEmailNotice(t('desk.res.form.alert.bookingSummaryEmailSent'));
+    } catch (e) {
+      setSubmitErr(e instanceof Error ? e.message : t('desk.err.generic'));
+    } finally {
+      setSummaryEmailBusy(false);
+    }
+  }
 
   useEffect(() => {
     setRefundOkNotice(null);
+    setSummaryEmailNotice(null);
   }, [editingId]);
 
   useEffect(() => {
@@ -494,6 +635,7 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
       setHandoverGate(null);
       setReturnCompletionGate(null);
       setCargosHandoverOverrideSnapshot(null);
+      setAgreementPrintCustomer(null);
       return;
     }
     let c = false;
@@ -518,6 +660,7 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
         const linkId = r.customer?.id ?? null;
         setLinkedCustomerId(linkId);
         setInitialLinkedCustomerId(linkId);
+        setAgreementPrintCustomer(r.customer ?? null);
         setCustSearch('');
         setCustOptions([]);
         setValues({
@@ -888,6 +1031,7 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
       setReturnCompletionGate(r.returnCompletionGate ?? null);
       setDamageSuggestedCaptureCents(r.damageReport?.suggestedCaptureCents ?? null);
       setDamageLineFeesSumCents(sumDamageLineEstimatedFees(r.damageReport));
+      setAgreementPrintCustomer(r.customer ?? null);
       setCargosHandoverOverrideSnapshot(
         r.cargosHandoverOverrideAt
           ? {
@@ -2210,6 +2354,50 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
             <p className="desk-muted" style={{ margin: '0.2rem 0 0.5rem', fontSize: '0.8rem' }}>
               {t('desk.res.form.agreementBlurb')}
             </p>
+            {(agreementStatus === 'SIGNED' || agreementStatus === 'VOID') && (
+              <p className="desk-muted" style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', lineHeight: 1.45 }}>
+                {agreementStatus === 'SIGNED'
+                  ? t('desk.res.form.agreementLifecycleSigned')
+                  : t('desk.res.form.agreementLifecycleVoid')}
+              </p>
+            )}
+            {companyId && linkedCustomerId && (
+              <p className="desk-muted" style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', lineHeight: 1.45 }}>
+                {t('desk.res.form.agreementCustomerDocsBlurb')}{' '}
+                <Link
+                  href={`${deskCustomersBasePathFrom(pathname)}?${new URLSearchParams({
+                    companyId,
+                    docs: linkedCustomerId,
+                  }).toString()}`}
+                >
+                  {t('desk.reservations.customerDocumentsLink')}
+                </Link>
+                {' · '}
+                <Link
+                  href={`${deskCustomersBasePathFrom(pathname)}?${new URLSearchParams({
+                    companyId,
+                    open: linkedCustomerId,
+                  }).toString()}`}
+                >
+                  {t('desk.reservations.customerProfileLink')}
+                </Link>
+                {' · '}
+                <Link
+                  href={`${deskCustomersBasePathFrom(pathname)}?${new URLSearchParams({
+                    companyId,
+                    ocrPending: '1',
+                    docs: linkedCustomerId,
+                  }).toString()}`}
+                >
+                  {t('desk.reservations.customerOcrDocsLink')}
+                </Link>
+              </p>
+            )}
+            {companyId && !linkedCustomerId && (
+              <p className="desk-muted" style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', lineHeight: 1.45 }}>
+                {t('desk.res.form.agreementLinkCustomerForDocs')}
+              </p>
+            )}
             <label style={{ display: 'block', marginBottom: '0.35rem' }}>
               <span className="desk-muted" style={{ fontSize: '0.8rem' }}>
                 {t('desk.res.form.agreementTpl')}
@@ -2275,36 +2463,40 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
               maxLength={500000}
               style={{ width: '100%', fontSize: '0.9rem' }}
             />
-            {agreementBody.trim() !== '' && (
-              <div className="desk-tool" style={{ marginTop: '0.35rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const w = window.open('', '_blank', 'noopener,noreferrer');
-                    if (!w) {
-                      return;
+            <div className="desk-tool" style={{ marginTop: '0.35rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                {isEdit && editingId && canWrite && (
+                  <button
+                    type="button"
+                    disabled={
+                      summaryEmailBusy ||
+                      bookingSummaryEmailBlocked ||
+                      !values.customerEmail.trim().includes('@')
                     }
-                    w.document.title = t('desk.res.form.printAgreementTitle');
-                    const pre = w.document.createElement('pre');
-                    pre.style.whiteSpace = 'pre-wrap';
-                    pre.style.fontFamily = 'system-ui, sans-serif';
-                    pre.style.padding = '1rem';
-                    pre.textContent = agreementBody;
-                    w.document.body.appendChild(pre);
-                    w.document.close();
-                    w.focus();
-                    w.print();
-                    window.setTimeout(() => {
-                      w.close();
-                    }, 500);
-                  }}
-                >
+                    title={
+                      bookingSummaryEmailBlocked
+                        ? t('desk.res.form.sendBookingSummaryEmailClosedBooking')
+                        : !values.customerEmail.trim().includes('@')
+                          ? t('desk.res.form.sendBookingSummaryEmailNeedEmail')
+                          : t('desk.res.form.sendBookingSummaryEmailHint')
+                    }
+                    onClick={() => void onSendBookingSummaryEmail()}
+                  >
+                    {summaryEmailBusy
+                      ? t('desk.res.form.sendBookingSummaryEmailSending')
+                      : t('desk.res.form.sendBookingSummaryEmail')}
+                  </button>
+                )}
+                <button type="button" onClick={openAgreementPrintWindow}>
                   {t('desk.res.form.printAgreement')}
                 </button>
                 <span className="desk-muted" style={{ fontSize: '0.8rem' }}>
                   {t('desk.res.form.attachPrintHint')}
                 </span>
               </div>
+            {summaryEmailNotice && (
+              <p className="desk-ok" role="status" style={{ margin: '0.35rem 0 0' }}>
+                {summaryEmailNotice}
+              </p>
             )}
             {agreementId && (
               <div style={{ margin: '0.5rem 0' }}>

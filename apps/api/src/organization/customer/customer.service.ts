@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -23,12 +24,16 @@ import {
   effectiveListCompanyFilter,
 } from '../../auth/company-access';
 import { AuditService } from '../../audit/audit.service';
+import { MailService } from '../../mail/mail.service';
 
 @Injectable()
 export class CustomerService {
+  private readonly logger = new Logger(CustomerService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   private static trimOrNull(s: string | null | undefined): string | null {
@@ -426,7 +431,7 @@ export class CustomerService {
       throw new NotFoundException(`Company not found: ${data.companyId}`);
     }
     try {
-      return await this.prisma.customer.create({
+      const created = await this.prisma.customer.create({
         data: {
           companyId: data.companyId,
           name: data.name.trim(),
@@ -453,6 +458,21 @@ export class CustomerService {
         },
         include: { _count: { select: { reservations: true } } },
       });
+      if (this.mail.isEnabled()) {
+        void this.mail
+          .sendDeskCustomerWelcome({
+            to: created.email,
+            customerName: created.name,
+            companyId: created.companyId,
+            customerId: created.id,
+          })
+          .catch((err) => {
+            this.logger.warn(
+              `Desk customer welcome mail failed (${created.id}): ${err instanceof Error ? err.message : String(err)}`,
+            );
+          });
+      }
+      return created;
     } catch (e) {
       if (e instanceof PrismaClientKnownRequestError && e.code === 'P2002') {
         throw new ConflictException('A customer with this email already exists for this company');

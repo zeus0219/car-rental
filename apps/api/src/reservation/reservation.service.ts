@@ -106,7 +106,18 @@ export class ReservationService {
     pickupStation: { select: { id: true, name: true, code: true } },
     returnStation: { select: { id: true, name: true, code: true } },
     extraLines: { orderBy: { sortOrder: 'asc' as const } },
-    customer: { select: { id: true, name: true, email: true, phone: true } },
+    customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            fiscalCode: true,
+            vatNumber: true,
+            sdiRecipientCode: true,
+            pec: true,
+          },
+        },
   } as const;
 
   constructor(
@@ -209,7 +220,18 @@ export class ReservationService {
             _count: { select: { photos: true, lines: true } },
           },
         },
-        customer: { select: { id: true, name: true, email: true, phone: true } },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            fiscalCode: true,
+            vatNumber: true,
+            sdiRecipientCode: true,
+            pec: true,
+          },
+        },
         createdByPartnerApiKey: { select: { id: true, name: true } },
       },
     });
@@ -258,6 +280,65 @@ export class ReservationService {
     };
   }
 
+  /** Desk: email guest a non-contract booking summary (SMTP + valid guest email + open booking). */
+  async sendBookingSummaryEmail(
+    id: string,
+    user: JwtUser,
+    ctx: { ip?: string; userAgent?: string },
+  ): Promise<{ ok: true }> {
+    const terminal = new Set(['CANCELLED', 'COMPLETED', 'NO_SHOW']);
+    const r = await this.getScopedReservationRecord(id, user);
+    if (terminal.has(r.status)) {
+      throw new BadRequestException(
+        'Booking summary email is only available before the rental is closed (not cancelled, completed, or no-show).',
+      );
+    }
+    const to = r.customerEmail?.trim();
+    if (!to?.includes('@')) {
+      throw new BadRequestException('Reservation has no valid customer email address.');
+    }
+    if (!this.mail.isEnabled()) {
+      throw new ServiceUnavailableException('Outbound email is not configured (SMTP).');
+    }
+    const plate = r.vehicle?.licensePlate?.trim() ?? '';
+    const model = r.vehicle?.modelLabel?.trim() ?? '';
+    const cls = r.vehicle?.vehicleClass?.name?.trim() ?? '';
+    const vehicleBits = [plate, model, cls].filter(Boolean);
+    const vehicleSummary = vehicleBits.length ? vehicleBits.join(' · ') : null;
+    const pickupStationLine = r.pickupStation
+      ? `${r.pickupStation.name}${r.pickupStation.city ? ` — ${r.pickupStation.city}` : ''}`
+      : null;
+    const returnStationLine = r.returnStation
+      ? `${r.returnStation.name}${r.returnStation.city ? ` — ${r.returnStation.city}` : ''}`
+      : null;
+    await this.mail.sendReservationBookingSummaryEmail({
+      to,
+      customerName: r.customerName,
+      reservationId: r.id,
+      companyId: r.companyId,
+      status: r.status,
+      totalCents: r.totalCents,
+      currency: r.currency || 'EUR',
+      pickupAt: r.pickupAt,
+      returnAt: r.returnAt,
+      publicViewToken: r.publicViewToken,
+      vehicleSummary,
+      pickupStationLine,
+      returnStationLine,
+    });
+    const toHash = createHash('sha256').update(to.toLowerCase()).digest('hex').slice(0, 16);
+    await this.audit.log({
+      userId: user.sub,
+      action: 'reservation.email_summary',
+      entity: 'Reservation',
+      entityId: r.id,
+      metadata: { toSha256Prefix: toHash },
+      ip: ctx.ip ?? null,
+      userAgent: ctx.userAgent ?? null,
+    });
+    return { ok: true };
+  }
+
   private async getScopedReservationRecord(id: string, user: JwtUser) {
     const r = await this.prisma.reservation.findUnique({
       where: { id },
@@ -278,7 +359,18 @@ export class ReservationService {
         rentalAgreement: {
           include: { attachments: { orderBy: { createdAt: 'asc' } } },
         },
-        customer: { select: { id: true, name: true, email: true, phone: true } },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            fiscalCode: true,
+            vatNumber: true,
+            sdiRecipientCode: true,
+            pec: true,
+          },
+        },
         createdByPartnerApiKey: { select: { id: true, name: true } },
         cargosSubmissions: { orderBy: { createdAt: 'desc' } },
         cargosHandoverOverrideBy: {
@@ -421,7 +513,18 @@ export class ReservationService {
         pickupStation: { select: { id: true, name: true, code: true } },
         returnStation: { select: { id: true, name: true, code: true } },
         extraLines: { orderBy: { sortOrder: 'asc' } },
-        customer: { select: { id: true, name: true, email: true, phone: true } },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            fiscalCode: true,
+            vatNumber: true,
+            sdiRecipientCode: true,
+            pec: true,
+          },
+        },
       },
     });
     await this.audit.log({
@@ -1356,7 +1459,18 @@ export class ReservationService {
           pickupStation: { select: { id: true, name: true, code: true } },
           returnStation: { select: { id: true, name: true, code: true } },
           extraLines: { orderBy: { sortOrder: 'asc' } },
-          customer: { select: { id: true, name: true, email: true, phone: true } },
+          customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            fiscalCode: true,
+            vatNumber: true,
+            sdiRecipientCode: true,
+            pec: true,
+          },
+        },
         },
       });
       const sync = odometerSyncFromUpdated(updated);
@@ -1401,7 +1515,18 @@ export class ReservationService {
           pickupStation: { select: { id: true, name: true, code: true } },
           returnStation: { select: { id: true, name: true, code: true } },
           extraLines: { orderBy: { sortOrder: 'asc' } },
-          customer: { select: { id: true, name: true, email: true, phone: true } },
+          customer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            fiscalCode: true,
+            vatNumber: true,
+            sdiRecipientCode: true,
+            pec: true,
+          },
+        },
         },
       });
       const sync = odometerSyncFromUpdated(updated);

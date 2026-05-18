@@ -36,6 +36,66 @@ type CalBlock = {
   reason?: string | null;
 };
 
+type CompanyCargosCalendar = {
+  cargosInScope: boolean;
+  cargosAdapter: string;
+  cargosCutoffMinutesBeforePickup: number | null;
+};
+
+type CargosSubRow = {
+  id: string;
+  reservationId: string;
+  status: string;
+  errorMessage: string | null;
+  createdAt: string;
+};
+
+function latestCargosByReservation(subs: CargosSubRow[]): Map<string, CargosSubRow> {
+  const m = new Map<string, CargosSubRow>();
+  for (const s of subs) {
+    if (!m.has(s.reservationId)) {
+      m.set(s.reservationId, s);
+    }
+  }
+  return m;
+}
+
+function isPastCargosEnqueueCutoffClient(
+  pickupAtIso: string,
+  cutoffMinutes: number | null | undefined,
+  nowMs: number = Date.now(),
+): boolean {
+  if (cutoffMinutes == null || cutoffMinutes <= 0) {
+    return false;
+  }
+  const pickupAt = new Date(pickupAtIso).getTime();
+  const deadlineMs = pickupAt - cutoffMinutes * 60_000;
+  return nowMs > deadlineMs;
+}
+
+/** CaRGOS overlay for calendar bar when company requires transmission. */
+function calendarCargosOverlay(
+  company: CompanyCargosCalendar | null,
+  r: CalReservation,
+  latest: CargosSubRow | undefined,
+): { kind: 'none' } | { kind: 'pending' } | { kind: 'issue'; pastCutoff: boolean } {
+  if (!company || !company.cargosInScope || company.cargosAdapter === 'OFF') {
+    return { kind: 'none' };
+  }
+  if (r.status === 'CANCELLED' || r.status === 'COMPLETED' || r.status === 'NO_SHOW') {
+    return { kind: 'none' };
+  }
+  const st = latest?.status;
+  if (st === 'MOCK_SENT' || st === 'SKIPPED') {
+    return { kind: 'none' };
+  }
+  if (st === 'PENDING' || st === 'PROCESSING') {
+    return { kind: 'pending' };
+  }
+  const pastCutoff = isPastCargosEnqueueCutoffClient(r.pickupAt, company.cargosCutoffMinutesBeforePickup);
+  return { kind: 'issue', pastCutoff };
+}
+
 function startOfDay(d: Date): Date {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -104,6 +164,8 @@ export default function DeskCalendarPage() {
   const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
   const [reservations, setReservations] = useState<CalReservation[]>([]);
   const [blocks, setBlocks] = useState<CalBlock[]>([]);
+  const [companyCargos, setCompanyCargos] = useState<CompanyCargosCalendar | null>(null);
+  const [cargosSubs, setCargosSubs] = useState<CargosSubRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -120,23 +182,27 @@ export default function DeskCalendarPage() {
       const fromIso = range.rangeStart.toISOString();
       const toIso = range.rangeEnd.toISOString();
       const qCo = encodeURIComponent(companyId);
-      const [ve, res, bl] = await Promise.all([
+      const [ve, res, bl, co, subs] = await Promise.all([
         apiJson<VehicleRow[]>(`/vehicles?companyId=${qCo}`),
         apiJson<CalReservation[]>(
           `/reservations?companyId=${qCo}&from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`,
         ),
         apiJson<CalBlock[]>(`/calendar-blocks?companyId=${qCo}`),
+        apiJson<CompanyCargosCalendar>(`/companies/${qCo}`).catch(() => null),
+        apiJson<CargosSubRow[]>(`/integrations/cargos/submissions?companyId=${qCo}`).catch(() => []),
       ]);
       setVehicles(ve);
       setReservations(res);
       setBlocks(bl);
+      setCompanyCargos(co);
+      setCargosSubs(Array.isArray(subs) ? subs : []);
       setErr(null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : t('desk.err.generic'));
     } finally {
       setLoading(false);
     }
-  }, [companyId, range.rangeStart, range.rangeEnd]);
+  }, [companyId, range.rangeStart, range.rangeEnd, t]);
 
   useEffect(() => {
     if (!ready || !companyId) return;
@@ -162,6 +228,22 @@ export default function DeskCalendarPage() {
     }
     return m;
   }, [blocks]);
+
+  const cargosByRes = useMemo(() => latestCargosByReservation(cargosSubs), [cargosSubs]);
+
+  const cargosAlertCount = useMemo(() => {
+    if (!companyCargos) {
+      return 0;
+    }
+    let n = 0;
+    for (const r of reservations) {
+      const o = calendarCargosOverlay(companyCargos, r, cargosByRes.get(r.id));
+      if (o.kind === 'pending' || o.kind === 'issue') {
+        n += 1;
+      }
+    }
+    return n;
+  }, [companyCargos, reservations, cargosByRes]);
 
   if (meLoading) return <p className="desk-muted">{t('desk.loadingProfile')}</p>;
   if (meErr) return <p className="desk-err">{meErr}</p>;
@@ -207,7 +289,21 @@ export default function DeskCalendarPage() {
             <span>
               <span className="fleet-cal-legend-swatch fleet-cal-block" /> {t('desk.calendar.legend.block')}
             </span>
+            <span>
+              <span className="fleet-cal-legend-swatch fleet-cal-legend-swatch--cargos-pending" />{' '}
+              {t('desk.calendar.cargos.legendPending')}
+            </span>
+            <span>
+              <span className="fleet-cal-legend-swatch fleet-cal-legend-swatch--cargos-issue" />{' '}
+              {t('desk.calendar.cargos.legendIssue')}
+            </span>
           </div>
+
+          {cargosAlertCount > 0 && (
+            <p className="desk-err" style={{ maxWidth: '52rem', marginTop: '0.65rem', fontSize: '0.9rem' }} role="status">
+              {t('desk.calendar.cargos.banner').replace('{n}', String(cargosAlertCount))}
+            </p>
+          )}
 
           {loading && vehicles.length === 0 ? (
             <p className="desk-muted">{t('desk.calendar.loading')}</p>
@@ -262,14 +358,32 @@ export default function DeskCalendarPage() {
                       if (!seg) return null;
                       const cust = r.customer?.name?.trim();
                       const statusLbl = formatDeskReservationStatus(r.status, t);
-                      const title = [statusLbl, r.status, cust].filter(Boolean).join(' · ');
+                      const cOverlay = companyCargos
+                        ? calendarCargosOverlay(companyCargos, r, cargosByRes.get(r.id))
+                        : { kind: 'none' as const };
+                      let cargosClass = '';
+                      let cargosTitle = '';
+                      if (cOverlay.kind === 'pending') {
+                        cargosClass = ' fleet-cal-bar--cargos-pending';
+                        cargosTitle = t('desk.calendar.cargos.titlePending');
+                      } else if (cOverlay.kind === 'issue') {
+                        cargosClass = cOverlay.pastCutoff
+                          ? ' fleet-cal-bar--cargos-cutoff'
+                          : ' fleet-cal-bar--cargos-issue';
+                        cargosTitle = cOverlay.pastCutoff
+                          ? t('desk.calendar.cargos.titleCutoff')
+                          : t('desk.calendar.cargos.titleIssue');
+                      }
+                      const title = [statusLbl, r.status, cust, cargosTitle, t('desk.calendar.openRes')]
+                        .filter(Boolean)
+                        .join(' · ');
                       return (
                         <Link
                           key={r.id}
                           href={`/desk/reservations?companyId=${encodeURIComponent(companyId)}&open=${encodeURIComponent(r.id)}`}
-                          className={`fleet-cal-bar ${reservationBarClass(r.status)}`}
+                          className={`fleet-cal-bar ${reservationBarClass(r.status)}${cargosClass}`}
                           style={{ left: `${seg.left}%`, width: `${seg.width}%` }}
-                          title={`${title} · ${t('desk.calendar.openRes')}`}
+                          title={title}
                         />
                       );
                     })}
