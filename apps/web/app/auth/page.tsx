@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
+import { AppLogo } from '../../components/AppLogo';
 import { usePublicLocaleContext } from '../../components/PublicLocaleProvider';
 import { getApiBase } from '../../lib/api';
 import { translateDeskApiError } from '../../lib/desk-api-error-i18n';
@@ -206,6 +207,9 @@ export default function LoginPage() {
   return (
     <main className="auth-page">
       <div className="auth-card">
+        <div className="auth-card-brand">
+          <AppLogo variant="auth" priority />
+        </div>
         <h1>{t('auth.title')}</h1>
         <p className="auth-sub">
           {t('auth.api')} <code>{getApiBase()}</code>

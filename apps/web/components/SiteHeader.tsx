@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { AppLogo } from './AppLogo';
 import { usePublicLocaleContext } from './PublicLocaleProvider';
 import { clearAccessToken } from '../lib/auth-storage';
 import { useStaffSessionOptional } from '../lib/use-staff-session';
@@ -13,9 +14,7 @@ export function SiteHeader() {
 
   return (
     <header className="site-header">
-      <Link href="/" className="site-header-brand">
-        {t('nav.brand')}
-      </Link>
+      <AppLogo href="/" variant="header" priority />
       <nav className="site-header-nav" aria-label="Main">
         <Link href="/quote">{t('nav.quote')}</Link>
         <Link href="/my">{t('nav.my')}</Link>

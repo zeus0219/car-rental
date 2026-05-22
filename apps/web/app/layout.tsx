@@ -24,13 +24,15 @@ export async function generateMetadata(): Promise<Metadata> {
   const locale = parsePublicLocale(cookieStore.get(PUBLIC_LOCALE_COOKIE)?.value);
   if (locale === 'it') {
     return {
-      title: 'Noleggio auto',
-      description: 'Preventivo e prenotazioni — in sviluppo',
+      title: 'FORESERVICE — Noleggio auto',
+      description: 'Preventivo e prenotazioni — FORESERVICE noleggio auto',
+      icons: { icon: '/foreservice-logo.png', apple: '/foreservice-logo.png' },
     };
   }
   return {
-    title: 'Car rental',
-    description: 'Customer booking (Italy) — work in progress',
+    title: 'FORESERVICE — Car rental',
+    description: 'FORESERVICE car rental — quotes and bookings',
+    icons: { icon: '/foreservice-logo.png', apple: '/foreservice-logo.png' },
   };
 }
 

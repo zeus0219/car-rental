@@ -3,7 +3,7 @@ import type { PublicLocale } from './public-locale';
 /** Flat message map — public / marketing pages only (H3 first slice). */
 export const publicMessages = {
   en: {
-    'nav.brand': 'Car rental',
+    'nav.brand': 'FORESERVICE',
     'nav.quote': 'Quote',
     'nav.my': 'My rentals',
     'nav.staff': 'Staff',
@@ -256,7 +256,7 @@ export const publicMessages = {
     'desk.loadingProfile': 'Loading profile…',
     /** Shown on buttons while a request is in flight (H3: avoid raw ellipsis literals in desk UI). */
     'desk.ui.buttonBusy': '…',
-    'desk.brand': 'Car rental — back office',
+    'desk.brand': 'FORESERVICE — back office',
     'desk.nav.aria': 'Back office',
     'desk.signOut': 'Sign out',
     'desk.nav.dashboard': 'Dashboard',
@@ -2252,7 +2252,7 @@ export const publicMessages = {
     'status.unknown.summary': 'See trip details below.',
   },
   it: {
-    'nav.brand': 'Noleggio auto',
+    'nav.brand': 'FORESERVICE',
     'nav.quote': 'Preventivo',
     'nav.my': 'I miei noleggi',
     'nav.staff': 'Staff',
@@ -2512,7 +2512,7 @@ export const publicMessages = {
     'desk.loadingGate': 'Caricamento…',
     'desk.loadingProfile': 'Caricamento profilo…',
     'desk.ui.buttonBusy': '…',
-    'desk.brand': 'Noleggio auto — portale operativo',
+    'desk.brand': 'FORESERVICE — portale operativo',
     'desk.nav.aria': 'Portale operativo',
     'desk.signOut': 'Esci',
     'desk.nav.dashboard': 'Dashboard',

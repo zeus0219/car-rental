@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMemo } from 'react';
+import { AppLogo } from './AppLogo';
 import { clearAccessToken } from '../lib/auth-storage';
 import { deskNavShowsAudit, deskNavShowsFleetAndCalendar, deskNavShowsTeam } from '../lib/desk-nav-access';
 import type { PublicMessageKey } from '../lib/public-messages';
@@ -43,7 +44,7 @@ export function DeskNav() {
 
   return (
     <nav className="desk-nav" aria-label={t('desk.nav.aria')}>
-      <span className="desk-brand">{t('desk.brand')}</span>
+      <AppLogo href="/desk" variant="desk" />
       {links.map(({ href, key }) => {
         const active =
           href === '/desk'

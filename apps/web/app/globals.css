@@ -108,19 +108,39 @@ code {
   text-decoration: none;
 }
 
-.site-header-brand {
-  font-weight: 700;
-  font-size: 1.0625rem;
-  letter-spacing: -0.02em;
-  background: linear-gradient(105deg, #1e1b4b 0%, #4f46e5 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+.app-logo-link {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
 }
 
-.site-header-brand:hover {
-  color: transparent;
-  filter: brightness(1.08);
+.app-logo-link:hover {
+  opacity: 0.92;
+}
+
+.app-logo {
+  display: block;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.app-logo--header {
+  max-height: 3.25rem;
+  max-width: min(200px, 42vw);
+}
+
+.app-logo--desk {
+  max-height: 2.85rem;
+  max-width: min(176px, 38vw);
+}
+
+.app-logo--auth {
+  max-height: 4.25rem;
+  max-width: min(240px, 72vw);
+  margin: 0 auto;
 }
 
 .site-header-nav {
@@ -192,6 +212,16 @@ code {
   max-width: 720px;
   margin: 0 auto;
   padding: clamp(2.5rem, 6vw, 4.5rem) 1.5rem 4rem;
+}
+
+.page-home-logo {
+  display: block;
+  width: auto;
+  max-width: min(260px, 78vw);
+  height: auto;
+  max-height: 4.5rem;
+  margin: 0 0 1.25rem;
+  object-fit: contain;
 }
 
 .page-home h1 {
@@ -310,6 +340,12 @@ code {
   max-width: 440px;
   margin: 0 auto;
   padding: clamp(2.5rem, 8vw, 4rem) 1.5rem 4rem;
+}
+
+.auth-card-brand {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 1rem;
 }
 
 .auth-card {

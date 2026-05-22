@@ -9,6 +9,7 @@ import {
   updateReservationSchema,
 } from '@car-rental/shared';
 import { apiJson, apiFetch } from '../lib/api';
+import { BRAND_LOGO_PATH } from '../lib/brand';
 import { translateDeskApiError, translateDeskApiErrorLine, HANDOVER_BLOCKER_KEYS, RETURN_BLOCKER_KEYS } from '../lib/desk-api-error-i18n';
 import { formatDeskCargosSubmissionStatus } from '../lib/desk-cargos-submission-status';
 import { formatDepositHoldStatus } from '../lib/desk-deposit-hold-label';
@@ -411,6 +412,7 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
     const style = d.createElement('style');
     style.textContent =
       'body{font-family:system-ui,Segoe UI,Roboto,sans-serif;padding:1rem;max-width:50rem;margin:0 auto;color:#111;line-height:1.35}' +
+      '.print-logo{display:block;max-width:220px;height:auto;margin:0 auto 1rem}' +
       'h1{font-size:1.2rem;margin:0 0 0.35rem;font-weight:700}' +
       'h2{font-size:1.02rem;margin:1rem 0 0.4rem;font-weight:600}' +
       '.ref{font-size:0.82rem;color:#444;margin:0 0 1rem}' +
@@ -422,6 +424,11 @@ export function ReservationForm({ me, companyId, open, editingId, onClose, onSav
       '@media print{body{padding:0.5rem}pre{break-inside:avoid}h2{break-after:avoid}}';
     d.head.appendChild(style);
     const body = d.body;
+    const logo = d.createElement('img');
+    logo.src = BRAND_LOGO_PATH;
+    logo.alt = 'FORESERVICE';
+    logo.className = 'print-logo';
+    body.appendChild(logo);
     const h1 = d.createElement('h1');
     h1.textContent = t('desk.res.form.printAgreementTitle');
     body.appendChild(h1);

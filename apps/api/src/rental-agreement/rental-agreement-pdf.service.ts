@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { Injectable } from '@nestjs/common';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
@@ -68,6 +70,29 @@ function formatMoney(cents: number | null, currency: string): string {
   return u === 'EUR' ? `EUR ${(cents / 100).toFixed(2)}` : `${(cents / 100).toFixed(2)} ${u}`;
 }
 
+let cachedLogoPng: Uint8Array | null | undefined;
+
+async function loadBrandLogoPng(): Promise<Uint8Array | null> {
+  if (cachedLogoPng !== undefined) {
+    return cachedLogoPng;
+  }
+  const candidates = [
+    join(process.cwd(), 'assets', 'foreservice-logo.png'),
+    join(process.cwd(), 'dist', 'assets', 'foreservice-logo.png'),
+    join(__dirname, '..', '..', 'assets', 'foreservice-logo.png'),
+  ];
+  for (const p of candidates) {
+    try {
+      cachedLogoPng = await readFile(p);
+      return cachedLogoPng;
+    } catch {
+      /* try next path */
+    }
+  }
+  cachedLogoPng = null;
+  return null;
+}
+
 @Injectable()
 export class RentalAgreementPdfService {
   async buildPdf(input: RentalAgreementPdfInput): Promise<Uint8Array> {
@@ -76,6 +101,23 @@ export class RentalAgreementPdfService {
     const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
     let page = doc.addPage([PAGE_W, PAGE_H]);
     let y = PAGE_H - MARGIN;
+
+    const logoBytes = await loadBrandLogoPng();
+    if (logoBytes) {
+      const img = await doc.embedPng(logoBytes);
+      const maxW = 160;
+      const maxH = 44;
+      const scale = Math.min(maxW / img.width, maxH / img.height);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      page.drawImage(img, {
+        x: (PAGE_W - w) / 2,
+        y: y - h,
+        width: w,
+        height: h,
+      });
+      y -= h + 14;
+    }
 
     const addPage = () => {
       page = doc.addPage([PAGE_W, PAGE_H]);

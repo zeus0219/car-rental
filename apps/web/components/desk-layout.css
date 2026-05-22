@@ -74,13 +74,10 @@
   box-shadow: inset 0 0 0 1px rgba(165, 180, 252, 0.35);
 }
 
-.desk-nav .desk-brand {
-  font-weight: 700;
-  font-size: 0.98rem;
-  letter-spacing: -0.02em;
-  color: #fff;
+.desk-nav .app-logo-link {
   margin-right: 0.35rem;
-  padding: 0.35rem 0.5rem 0.35rem 0;
+  padding: 0.2rem 0.45rem 0.2rem 0;
+  flex-shrink: 0;
 }
 
 .desk-nav .desk-spacer {

@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers';
+import Image from 'next/image';
 import Link from 'next/link';
 import { API_VERSION } from '@car-rental/shared';
+import { BRAND_LOGO_PATH, BRAND_NAME, BRAND_TAGLINE_IT } from '../lib/brand';
 import { PublicHomeActions } from '../components/PublicHomeActions';
 import { PUBLIC_LOCALE_COOKIE, parsePublicLocale } from '../lib/public-locale';
 import { publicT } from '../lib/public-messages';
@@ -14,6 +16,14 @@ export default async function Home() {
 
   return (
     <main className="page-home">
+      <Image
+        src={BRAND_LOGO_PATH}
+        alt={`${BRAND_NAME} — ${BRAND_TAGLINE_IT}`}
+        width={260}
+        height={72}
+        className="page-home-logo"
+        priority
+      />
       <h1>{t('home.title')}</h1>
       <p className="page-home-lead">
         <Link href="/quote">{t('home.priceLink')}</Link> — {t('home.priceLine')}
