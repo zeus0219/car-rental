@@ -277,7 +277,7 @@ The API blocks **`PATCH …/reservations/:id`** with **`status: "IN_PROGRESS"`**
 
 Align these with **legal / ops** (counsel). Empty env value falls back to the code default.
 
-**CaRGOS alignment (D5):** Per company (**Desk → Organization → CaRGOS**), **`cargosInScope`**, **`cargosAdapter`** (**MOCK** / **HTTP** / **OFF**), and **`cargosHttpUrl`** determine whether transmission is required (**`handoverGate.cargosTransmissionRequired`**). The **worker** processes the queue ([`apps/worker/src/main.ts`](../apps/worker/src/main.ts)); keep it running in production when **HTTP** or **MOCK** is used.
+**CaRGOS alignment (D5):** Per company (**Desk → Organization → CaRGOS**), **`cargosInScope`**, **`cargosAdapter`** (**MOCK** / **HTTP** / **OFF**), and **`cargosHttpUrl`** determine whether transmission is required (**`handoverGate.cargosTransmissionRequired`**). The **worker** processes the queue ([`apps/worker/src/main.ts`](../apps/worker/src/main.ts)); keep it running in production when **HTTP** or **MOCK** is used. If your middleware requires authentication, set **`CARGOS_HTTP_SECRET`** in both **api** and **worker** containers; the app sends **`Authorization: Bearer <secret>`** plus **`X-Car-Rental-Integration: cargos`**.
 
 **Auto-enqueue:** When a rental agreement is **signed**, the API can enqueue CaRGOS the same way as **`POST /v1/integrations/cargos/enqueue`** — controlled by **`CARGOS_AUTO_ENQUEUE_ON_SIGN`** (**`0` / false / off** disables; failures are **audit**-logged).
 
@@ -389,16 +389,17 @@ This repo does **not** speak to the **Polizia di Stato** portale directly. It pe
 | **`cargosCutoffMinutesBeforePickup`** | After `pickupAt − N` minutes, **new** CaRGOS enqueue is rejected and **IN_PROGRESS** shows **`CARGOS_ENQUEUE_CUTOFF`** until **ADMIN**/**BRANCH** override (if transmission still required). `null`/`0` disables in software. |
 | **`Station.cargosLocationCode`** | Sent as **`station.cargosLocationCode`** (and legacy flat fields) in the payload — must match what your middleware / manuals expect. |
 
-**API-only env** (already in compose): **`CARGOS_AUTO_ENQUEUE_ON_SIGN`**, **`HANDOVER_REQUIRE_CARGOS`** — [§ Desk handover](#desk-handover-return-and-damage-d3-f1-f2).
+**API-only env** (already in compose): **`CARGOS_AUTO_ENQUEUE_ON_SIGN`**, **`HANDOVER_REQUIRE_CARGOS`** — [§ Desk handover](#desk-handover-return-and-damage-d3-f1-f2). **API + worker shared secret:** **`CARGOS_HTTP_SECRET`** (optional Bearer auth for **`cargosHttpUrl`**).
 
 ### D4 — Worker behaviour and environment
 
-The worker reads **`CargosSubmission`** rows and processes **`PENDING`** (and recovers stuck **`PROCESSING`** after **`WORKER_PROCESSING_STALE_MS`**). For **HTTP**, it uses **`fetch`** with **`Content-Type: application/json`**. Any **2xx** response marks the row **`MOCK_SENT`** (name retained from stub days = adapter accepted). Failures increment **`attemptCount`**; after **`CARGOS_MAX_ATTEMPTS`**, status **`FAILED`** — alert and retry manually ([§ Observability — alerts](#alerts-suggested)).
+The worker reads **`CargosSubmission`** rows and processes **`PENDING`** (and recovers stuck **`PROCESSING`** after **`WORKER_PROCESSING_STALE_MS`**). For **HTTP**, it uses **`fetch`** with **`Content-Type: application/json`**, **`X-Cargos-Environment`**, **`X-Car-Rental-Integration: cargos`**, and optional **`Authorization: Bearer CARGOS_HTTP_SECRET`**. Any **2xx** response marks the row **`MOCK_SENT`** (name retained from stub days = adapter accepted). Failures increment **`attemptCount`**; after **`CARGOS_MAX_ATTEMPTS`**, status **`FAILED`** — alert and retry manually ([§ Observability — alerts](#alerts-suggested)).
 
 | Worker env | Default | Purpose |
 |------------|---------|---------|
 | **`CARGOS_MAX_ATTEMPTS`** | `5` | Requeue until exceeded, then **`FAILED`**. |
 | **`CARGOS_HTTP_TIMEOUT_MS`** | `30000` | Per-request timeout for **`cargosHttpUrl`**. |
+| **`CARGOS_HTTP_SECRET`** | unset | Optional Bearer token for your CaRGOS middleware. Set the same value on **api** and **worker** so manual “Transmit now” and background queue use the same auth. |
 | **`WORKER_POLL_IDLE_MS`** | `2000` | Sleep between idle poll cycles. |
 | **`WORKER_PROCESSING_STALE_MS`** | `900000` (15 min) | **`PROCESSING`** rows older than this → **`PENDING`** (crash recovery). Min **60s** in code. |
 | **`WORKER_CARGOS_MOCK_DELAY_MS`** | `400` | **MOCK** adapter only — artificial delay before success. |
@@ -456,22 +457,23 @@ Per-**company** fields on **`Company`** (Desk → **Organization → SDI**): **`
 |---------|-----------|
 | **`OFF`** | **`POST /v1/integrations/sdi/enqueue`** with body **`{ invoiceId }`** creates a **`SdiInvoiceSubmission`** in **`SKIPPED`** (no HTTP). |
 | **`MOCK`** | Immediate **`MOCK_SENT`** with fake **`idTracciatura`** — UAT only. |
-| **`HTTP`** | API **`POST`**s JSON to **`sdiHttpUrl`** **from the request handler** (synchronous for the caller — not the CaRGOS worker). **15s** timeout ([`HTTP_TIMEOUT_MS`](../apps/api/src/integrations/sdi/sdi.service.ts)). **2xx** → **`SENT`**; optional response body JSON **`{ "idTracciatura": "…" }`** stored on the row. Non-2xx / network error → **`FAILED`**, **`errorMessage`** truncated. |
+| **`HTTP`** | API **`POST`**s JSON to **`sdiHttpUrl`** **from the request handler** (synchronous for the caller — not the CaRGOS worker). **15s** timeout ([`HTTP_TIMEOUT_MS`](../apps/api/src/integrations/sdi/sdi.service.ts)). Sends **`X-Car-Rental-Integration: sdi`** and optional **`Authorization: Bearer SDI_HTTP_SECRET`**. **2xx** → **`SENT`**; optional response body JSON **`{ "idTracciatura": "…" }`** stored on the row. Non-2xx / network error → **`FAILED`**, **`errorMessage`** truncated. |
 | **Idempotency** | Second **successful** submit (**`MOCK_SENT`** or **`SENT`**) for the same invoice → **409** conflict. |
 | **Audit** | **`sdi.submission`** on success-shaped outcomes ([`SdiService`](../apps/api/src/integrations/sdi/sdi.service.ts)). |
 | **List** | **`GET /v1/integrations/sdi/submissions?companyId=`** / **`invoiceId=`** (staff-scoped). |
 
-**JSON body to middleware** includes **`submissionId`**, **`invoiceId`**, **`documentNumber`**, amounts, **`supplier`** (lessor B3), **`buyer`** from linked **reservation** + **customer** when present — extend or wrap in your gateway to build **FatturaPA** / SDI.
+**JSON body to middleware** includes **`submissionId`**, **`invoiceId`**, **`documentNumber`**, amounts, **`supplier`** (lessor B3), **`buyer`** from linked **reservation** + **customer** when present — extend or wrap in your gateway to build **FatturaPA** / SDI. If **`SDI_CALLBACK_URL`** is set, it is included in the JSON so async middleware can complete later via **`POST /v1/integrations/sdi/callback`** with **`Authorization: Bearer SDI_CALLBACK_SECRET`** and body **`{ submissionId, status: "SENT" | "FAILED", idTracciatura?, errorMessage? }`**.
 
-**Security:** Same pattern as CaRGOS: **HTTPS**, private network or **mTLS** / API keys at a reverse proxy — the API sends **no** auth headers to **`sdiHttpUrl`** in v1.
+**Security:** Same pattern as CaRGOS: **HTTPS**, private network and/or reverse-proxy auth. Set **`SDI_HTTP_SECRET`** when your middleware requires a Bearer token; set **`SDI_CALLBACK_SECRET`** when using async callbacks.
 
 ### Operational checklist
 
 1. **Numbering** — Align **`InvoiceFiscalSequence`** behaviour with your **registro fatture** / counsel (gaps, voids, year rollover).  
 2. **Issue before SDI** — Enqueue only **`ISSUED`** documents.  
-3. **Staging** — Use **`MOCK`** or **`OFF`**; do **not** point staging at live **SDI** / accountant **production** URLs.  
-4. **Monitoring** — Query or alert on **`SdiInvoiceSubmission.status = FAILED`**; investigate **`errorMessage`**.  
-5. **Go-live** — Enable **`HTTP`** + production **`sdiHttpUrl`** only when your middleware and **Agenzia** process are approved.
+3. **Staging** — Use **`MOCK`** or staging **`HTTP`** middleware; do **not** point staging at live **SDI** / accountant **production** URLs.  
+4. **Security** — Configure **`SDI_HTTP_SECRET`** (outbound handoff) and, for async middleware, **`SDI_CALLBACK_URL`** + **`SDI_CALLBACK_SECRET`**.  
+5. **Monitoring** — Query or alert on **`SdiInvoiceSubmission.status = FAILED`**; investigate **`errorMessage`**.  
+6. **Go-live** — Enable **`HTTP`** + production **`sdiHttpUrl`** only when your middleware and **Agenzia** process are approved.
 
 ### Smoke checklist (invoices / SDI)
 

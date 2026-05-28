@@ -94,7 +94,15 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
        */
       ENFORCE_STAFF_SINGLE_COMPANY: boolish.optional(),
       /** D4: same semantics as worker — used when desk calls “Transmit now”. */
+      CARGOS_HTTP_SECRET: z.preprocess(
+        (v) => (typeof v === 'string' && !v.trim() ? undefined : v),
+        z.string().optional(),
+      ),
       /** Optional full URL for `POST /v1/integrations/sdi/callback` — included in HTTP handoff JSON for async SDI middleware (E4). */
+      SDI_HTTP_SECRET: z.preprocess(
+        (v) => (typeof v === 'string' && !v.trim() ? undefined : v),
+        z.string().optional(),
+      ),
       SDI_CALLBACK_URL: z.preprocess(
         (v) => (typeof v === 'string' && !v.trim() ? undefined : v),
         z.string().url().optional(),

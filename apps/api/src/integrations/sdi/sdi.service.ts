@@ -236,6 +236,14 @@ export class SdiService {
 
     const callbackUrl = this.config.get<string>('SDI_CALLBACK_URL')?.trim() || null;
     const body = buildSdiMiddlewareBody(submissionId, inv, { callbackUrl });
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Car-Rental-Integration': 'sdi',
+    };
+    const httpSecret = this.config.get<string>('SDI_HTTP_SECRET')?.trim();
+    if (httpSecret) {
+      headers.Authorization = `Bearer ${httpSecret}`;
+    }
 
     const controller = new AbortController();
     const to = setTimeout(() => controller.abort(), HTTP_TIMEOUT_MS);
@@ -243,7 +251,7 @@ export class SdiService {
     try {
       res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(body),
         signal: controller.signal,
       });

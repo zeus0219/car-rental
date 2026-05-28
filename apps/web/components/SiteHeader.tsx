@@ -36,7 +36,8 @@ export function SiteHeader() {
         ) : (
           <Link href="/auth">{t('nav.staff')}</Link>
         )}
-      </nav>      <div className="site-header-locale" role="group" aria-label={t('locale.label')}>
+      </nav>
+      <div className="site-header-locale" role="group" aria-label={t('locale.label')}>
         <button
           type="button"
           className={`site-header-locale-btn ${locale === 'en' ? 'is-active' : ''}`}

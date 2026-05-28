@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { buildCargosHttpAdapterBody, CargosEnqueueBody } from '@car-rental/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { JwtUser } from '../../auth/types';
@@ -48,7 +49,10 @@ function sleepMs(ms: number): Promise<void> {
 export class CargosService {
   private readonly logger = new Logger(CargosService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly config: ConfigService,
+  ) {}
 
   async enqueue(data: CargosEnqueueBody, user: JwtUser) {
     const r = await this.prisma.reservation.findUnique({ where: { id: data.reservationId } });
@@ -203,12 +207,18 @@ export class CargosService {
         const ac = new AbortController();
         const t = setTimeout(() => ac.abort(), timeout);
         const body = buildCargosHttpAdapterBody(pending, resRow, company.cargosEnvironment);
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'X-Cargos-Environment': company.cargosEnvironment,
+          'X-Car-Rental-Integration': 'cargos',
+        };
+        const httpSecret = this.config.get<string>('CARGOS_HTTP_SECRET')?.trim();
+        if (httpSecret) {
+          headers.Authorization = `Bearer ${httpSecret}`;
+        }
         const resp = await fetch(url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Cargos-Environment': company.cargosEnvironment,
-          },
+          headers,
           body: JSON.stringify(body),
           signal: ac.signal,
         });

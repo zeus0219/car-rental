@@ -562,6 +562,7 @@ code {
 /* ——— Desk tables & forms ——— */
 .desk-table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   margin: 1rem 0;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
@@ -571,6 +572,7 @@ code {
 
 .desk-table {
   width: 100%;
+  min-width: 44rem;
   border-collapse: collapse;
   font-size: 0.9rem;
 }
@@ -603,6 +605,7 @@ code {
 
 .desk-table code {
   font-size: 0.85em;
+  overflow-wrap: anywhere;
 }
 
 .desk-muted {
@@ -633,10 +636,12 @@ code {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.9rem;
+  min-width: 0;
 }
 
 .desk-tool select {
   min-width: 12rem;
+  max-width: 100%;
   padding: 0.45rem 0.65rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
@@ -671,11 +676,14 @@ code {
   gap: 0.25rem;
   font-size: 0.9rem;
   font-weight: 500;
+  min-width: 0;
 }
 
 .desk-form input,
 .desk-form select,
 .desk-form textarea {
+  width: 100%;
+  min-width: 0;
   padding: 0.5rem 0.65rem;
   font-size: 0.9rem;
   border-radius: var(--radius-sm);
@@ -884,4 +892,111 @@ button.quote-cta-pay:disabled {
   line-height: 1.85;
   margin: 0;
   padding-left: 1.2rem;
+}
+
+@media (max-width: 720px) {
+  html,
+  body {
+    background-attachment: scroll;
+  }
+
+  .site-header {
+    gap: 0.6rem;
+    padding: 0.55rem 0.85rem;
+  }
+
+  .site-header .app-logo-link {
+    flex: 1 1 100%;
+  }
+
+  .app-logo--header {
+    max-height: 2.8rem;
+    max-width: min(180px, 68vw);
+  }
+
+  .site-header-nav {
+    order: 2;
+    flex: 1 1 100%;
+    gap: 0.45rem 0.85rem;
+    overflow-x: auto;
+    padding-bottom: 0.1rem;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .site-header-locale {
+    order: 1;
+    margin-left: auto;
+  }
+
+  .page-home,
+  .public-page,
+  .auth-page {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .page-home-actions,
+  .auth-actions,
+  .desk-form-actions,
+  .desk-tool {
+    align-items: stretch;
+  }
+
+  .page-home-action,
+  .auth-actions button,
+  .desk-form-actions button,
+  .desk-tool button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .desk-form-panel {
+    max-width: none;
+    padding: 1rem;
+  }
+
+  .desk-tool label,
+  .desk-tool select,
+  .desk-tool input {
+    width: 100%;
+  }
+
+  .desk-form [style*='grid-template-columns'],
+  .public-page [style*='grid-template-columns'],
+  .auth-form [style*='grid-template-columns'] {
+    grid-template-columns: 1fr !important;
+  }
+
+  .desk-table {
+    min-width: 40rem;
+    font-size: 0.84rem;
+  }
+
+  .desk-table th,
+  .desk-table td {
+    padding: 0.55rem 0.65rem;
+  }
+
+  code {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 480px) {
+  .site-header {
+    position: static;
+  }
+
+  .site-header-locale-btn {
+    padding: 0.32rem 0.55rem;
+  }
+
+  .page-home h1 {
+    font-size: 1.7rem;
+  }
+
+  .auth-card {
+    padding: 1.1rem;
+  }
 }

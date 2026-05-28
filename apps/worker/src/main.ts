@@ -8,6 +8,7 @@
  *      `WORKER_CARGOS_MOCK_DELAY_MS` — delay before MOCK success (default 400)
  *      `CARGOS_MAX_ATTEMPTS` — HTTP / adapter failure retries (default 5)
  *      `CARGOS_HTTP_TIMEOUT_MS` — fetch timeout (default 30_000)
+ *      `CARGOS_HTTP_SECRET` — optional Bearer token for your CaRGOS middleware endpoint
  *      `WORKER_RETENTION_PURGE_BATCH` — max customer documents to purge per idle tick (default **25**; **0** = off)
  *      `WORKER_HEARTBEAT_LOG_MS` — optional idle heartbeat log interval for log-based liveness (default **0** = off; e.g. **300000** = 5 min)
  *      `STORAGE_LOCAL_ROOT` / `STORAGE_MODE` / `S3_*` — same semantics as API for blob delete
@@ -68,6 +69,19 @@ function parseNonNegIntEnv(s: string | undefined, def: number): number {
   }
   const n = Number.parseInt(s, 10);
   return Number.isFinite(n) && n >= 0 ? n : def;
+}
+
+function cargosHttpHeaders(environment: 'TEST' | 'PRODUCTION'): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Cargos-Environment': environment,
+    'X-Car-Rental-Integration': 'cargos',
+  };
+  const secret = process.env.CARGOS_HTTP_SECRET?.trim();
+  if (secret) {
+    headers.Authorization = `Bearer ${secret}`;
+  }
+  return headers;
 }
 
 /** One line per terminal CaRGOS failure — easy to grep in Loki / CloudWatch / Datadog. */
@@ -198,10 +212,7 @@ async function processOne(): Promise<boolean> {
       const body = buildCargosHttpAdapterBody(pending, resRow, company.cargosEnvironment);
       const resp = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Cargos-Environment': company.cargosEnvironment,
-        },
+        headers: cargosHttpHeaders(company.cargosEnvironment),
         body: JSON.stringify(body),
         signal: ac.signal,
       });

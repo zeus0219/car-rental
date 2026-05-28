@@ -111,16 +111,37 @@
 }
 
 @media (max-width: 720px) {
+  .desk {
+    background-attachment: scroll;
+  }
+
   .desk-nav {
-    row-gap: 0.5rem;
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.55rem 0.85rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .desk-nav .app-logo-link {
+    margin-right: 0.25rem;
+    padding-right: 0.25rem;
   }
 
   .desk-nav a.desk-nav-link {
+    flex: 0 0 auto;
     padding: 0.45rem 0.6rem;
     font-size: 0.8rem;
   }
 
+  .desk-nav .desk-spacer {
+    display: none;
+  }
+
   .desk-nav .desk-sign-out {
+    flex: 0 0 auto;
     min-height: 40px;
     padding: 0.45rem 0.85rem;
   }
